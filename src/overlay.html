@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>Nisab Overlay Notification</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background: transparent;
+      overflow: hidden;
+      font-family: 'Tajawal', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      padding: 8px;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .notification-card {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(3, 23, 19, 0.96), rgba(6, 44, 37, 0.96));
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      border-radius: 20px;
+      padding: 14px 16px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7), 0 0 20px rgba(245, 158, 11, 0.15);
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      cursor: pointer;
+      overflow: hidden;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .notification-card:hover {
+      border-color: rgba(245, 158, 11, 0.8);
+      transform: translateY(-2px);
+    }
+
+    /* Top gold gradient accent bar */
+    .top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #f59e0b, #10b981, #f59e0b);
+    }
+
+    /* Icon Badge */
+    .icon-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #031713;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+
+    .icon-badge svg {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Content Area */
+    .content-area {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #fde68a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0.3px;
+    }
+
+    .message {
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .sub-action {
+      display: inline-block;
+      margin-top: 5px;
+      font-size: 10px;
+      color: #34d399;
+      font-weight: 600;
+    }
+
+    /* Close Button */
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .close-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .close-btn svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 2.5;
+    }
+
+    /* Bottom countdown bar */
+    .progress-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2.5px;
+      background: rgba(245, 158, 11, 0.8);
+      width: 100%;
+      transform-origin: right;
+    }
+
+    @keyframes countdown {
+      from { width: 100%; }
+      to { width: 0%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="notification-card" id="card" title="انقر لفتح واستعادة التطبيق">
+    <div class="top-bar"></div>
+
+    <div class="icon-badge" id="iconBadge">
+      <!-- Mosque / Bell Icon SVG -->
+      <svg viewBox="0 0 24 24" id="iconSvg">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+    </div>
+
+    <div class="content-area">
+      <div class="header-row">
+        <div class="title" id="titleText">تنبيه تطبيق نِصاب</div>
+        <button class="close-btn" id="closeBtn" title="إغلاق التنبيه">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="message" id="messageText">حان الآن موعد الصلاة</div>
+      <div class="sub-action">انقر على الإشعار لفتح التطبيق ↗</div>
+    </div>
+
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <script>
+    const card = document.getElementById('card');
+    const closeBtn = document.getElementById('closeBtn');
+    const titleText = document.getElementById('titleText');
+    const messageText = document.getElementById('messageText');
+    const iconBadge = document.getElementById('iconBadge');
+    const progressBar = document.getElementById('progressBar');
+
+    // Click anywhere on card -> Restore Nisab main window!
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('#closeBtn')) return;
+      if (window.nisabAPI && window.nisabAPI.restoreMainWindow) {
+        window.nisabAPI.restoreMainWindow();
+      }
+    });
+
+    // Close button
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (window.nisabAPI && window.nisabAPI.closeOverlayNotification) {
+        window.nisabAPI.closeOverlayNotification();
+      }
+    });
+
+    function applyData(data) {
+      if (!data) return;
+
+      titleText.textContent = data.title || 'تنبيه تطبيق نِصاب';
+      messageText.textContent = data.message || '';
+
+      // Dynamic badge color
+      if (data.type === 'adhan') {
+        iconBadge.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+      } else if (data.type === 'reminder') {
+        iconBadge.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+      } else if (data.type === 'success') {
+        iconBadge.style.background = 'linear-gradient(135deg, #059669, #047857)';
+      } else {
+        iconBadge.style.background = 'linear-gradient(135deg, #f59e0b, #10b981)';
+      }
+
+      // Restart progress animation
+      const duration = (data.duration || 8000) / 1000;
+      progressBar.style.animation = 'none';
+      void progressBar.offsetWidth; // trigger reflow
+      progressBar.style.animation = `countdown ${duration}s linear forwards`;
+    }
+
+    // 1. Immediately apply from URL Query Parameters on load
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('title')) {
+        applyData({
+          title: decodeURIComponent(params.get('title')),
+          message: decodeURIComponent(params.get('message') || ''),
+          type: decodeURIComponent(params.get('type') || 'info'),
+          duration: Number(params.get('duration') || 8000)
+        });
+      }
+    } catch (e) {}
+
+    // 2. Also listen for dynamic IPC updates from main process
+    if (window.nisabAPI && window.nisabAPI.onOverlayData) {
+      window.nisabAPI.onOverlayData(applyData);
+    }
+  </script>
+</body>
+</html>

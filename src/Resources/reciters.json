@@ -1,0 +1,37 @@
+{
+  "1": {
+    "reciter": "مشاري راشد العفاسي",
+    "name_en": "Mishary Rashid Al Afasy",
+    "subfolder": "Alafasy_128kbps",
+    "url": "https://github.com/The-Quran-Project/Quran-Audio-Chapters/raw/refs/heads/main/Data/1/2.mp3",
+    "originalUrl": "https://server8.mp3quran.net/afs/002.mp3"
+  },
+  "2": {
+    "reciter": "أبو بكر الشاطري",
+    "name_en": "Abu Bakr Al Shatri",
+    "subfolder": "Abu_Bakr_Ash-Shaatree_128kbps",
+    "url": "https://github.com/The-Quran-Project/Quran-Audio-Chapters/raw/refs/heads/main/Data/2/2.mp3",
+    "originalUrl": "https://server11.mp3quran.net/shatri/002.mp3"
+  },
+  "3": {
+    "reciter": "ناصر القطامي",
+    "name_en": "Nasser Al Qatami",
+    "subfolder": "Nasser_Alqatami_128kbps",
+    "url": "https://github.com/The-Quran-Project/Quran-Audio-Chapters/raw/refs/heads/main/Data/3/2.mp3",
+    "originalUrl": "https://server6.mp3quran.net/qtm/002.mp3"
+  },
+  "4": {
+    "reciter": "ياسر الدوسري",
+    "name_en": "Yasser Al Dosari",
+    "subfolder": "Yasser_Ad-Dussary_128kbps",
+    "url": "https://github.com/The-Quran-Project/Quran-Audio-Chapters/raw/refs/heads/main/Data/4/2.mp3",
+    "originalUrl": "https://server11.mp3quran.net/yasser/002.mp3"
+  },
+  "5": {
+    "reciter": "هاني الرفاعي",
+    "name_en": "Hani Ar Rifai",
+    "subfolder": "Hani_Rifai_192kbps",
+    "url": "https://github.com/The-Quran-Project/Quran-Audio-Chapters/raw/refs/heads/main/Data/5/2.mp3",
+    "originalUrl": "https://server8.mp3quran.net/hani/002.mp3"
+  }
+}

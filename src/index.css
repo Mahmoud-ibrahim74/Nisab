@@ -1,0 +1,149 @@
+@font-face {
+  font-family: 'Tajawal';
+  src: url('./utils/fonts/Tajawal-Regular.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'KFGQPC-Hafs';
+  src: url('./utils/fonts/Elgharib-KFGQPCHafsV3-Taweel.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@import "tailwindcss";
+
+/* Tailwind CSS v4 Theme Tokens */
+@theme {
+  --font-sans: 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Tajawal', system-ui, -apple-system, sans-serif;
+  --font-quran: 'KFGQPC-Hafs', 'Tajawal', serif;
+}
+
+@layer base {
+  :root {
+    --color-emerald-deep: #031713;
+    --color-gold-accent: #f59e0b;
+    --color-gold-glow: rgba(245, 158, 11, 0.25);
+  }
+
+  html, body, #root {
+    background-color: #020f0d;
+    color: #f1f5f9;
+    font-family: 'Tajawal', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Force all general app typography to use the local Tajawal font */
+  .font-sans,
+  .font-serif {
+    font-family: 'Tajawal', system-ui, -apple-system, sans-serif !important;
+  }
+
+  /* Dedicated class ONLY for Quran text */
+  .font-quran,
+  .font-quran-hafs {
+    font-family: 'KFGQPC-Hafs', 'Tajawal', serif !important;
+  }
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: rgba(6, 44, 34, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+/* Custom Scrollbar for Islamic theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #021a14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #065f46;
+  border-radius: 9999px;
+  border: 2px solid #021a14;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d97706;
+}
+
+/* Custom Text Selection Highlight */
+::selection {
+  background-color: rgba(245, 158, 11, 0.35);
+  color: #fef3c7;
+}
+
+/* Print Media Styles */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 1.5cm;
+  }
+
+  html, body, #root {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+    font-family: 'Tajawal', serif, sans-serif !important;
+  }
+
+  /* Hide app navigation sidebar, headers, controls, and decorative SVGs */
+  aside,
+  header,
+  footer,
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  main {
+    position: static !important;
+    overflow: visible !important;
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Styling for printable Hadith document on paper */
+  .printable-hadith-card {
+    display: block !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 2px solid #065f46 !important;
+    border-radius: 12px !important;
+    padding: 24px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+
+  .printable-hadith-card * {
+    color: #0f172a !important;
+    text-shadow: none !important;
+  }
+
+  .print-banner {
+    display: block !important;
+  }
+}
+
+
