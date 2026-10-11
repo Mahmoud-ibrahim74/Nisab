@@ -2,6 +2,7 @@
 logs
 *.log
 out/
+build-out/
 dist-out/
 dist/
 npm-debug.log*
@@ -147,3 +148,4 @@ vite.config.ts.timestamp-*
 
 # Electron-Forge
 out/
+build-out/
