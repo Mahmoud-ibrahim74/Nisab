@@ -9,6 +9,10 @@ module.exports = {
     name: 'Nisab',
     executableName: 'Nisab',
     icon: path.resolve(__dirname, 'src/assets/icon'),
+    ignore: [
+      /\.git/,
+      /scratch/
+    ]
   },
   rebuildConfig: {},
   makers: [
@@ -21,7 +25,7 @@ module.exports = {
     },
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin'],
+      platforms: ['darwin', 'win32'],
     },
     {
       name: '@electron-forge/maker-deb',
@@ -37,15 +41,13 @@ module.exports = {
       name: '@electron-forge/plugin-auto-unpack-natives',
       config: {},
     },
-    // Fuses are used to enable/disable various Electron functionality
-    // at package time, before code signing the application
+    // Fuses for application hardening compatible with Electron 22
     new FusesPlugin({
       version: FuseVersion.V1,
       [FuseV1Options.RunAsNode]: false,
       [FuseV1Options.EnableCookieEncryption]: true,
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
-      [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
     }),
   ],

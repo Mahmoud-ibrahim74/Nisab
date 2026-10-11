@@ -13,6 +13,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist'),
     emptyOutDir: true,
+    target: ['chrome108', 'es2020'],
   },
   server: {
     port: 5173,
