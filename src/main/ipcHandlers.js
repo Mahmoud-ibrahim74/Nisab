@@ -202,6 +202,30 @@ function registerIpcHandlers(resourcesDir) {
       return false;
     }
   });
+
+  // 10. Disk storage for Quran Khatmah Tracker State
+  const getKhatmahFilePath = () => path.join(app.getPath('userData'), 'khatmah_data.json');
+
+  ipcMain.handle('khatmah:get', async () => {
+    try {
+      const filePath = getKhatmahFilePath();
+      const content = await fs.readFile(filePath, 'utf8');
+      return JSON.parse(content);
+    } catch (e) {
+      return null;
+    }
+  });
+
+  ipcMain.handle('khatmah:save', async (event, data) => {
+    try {
+      const filePath = getKhatmahFilePath();
+      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+      return true;
+    } catch (err) {
+      console.error('Error saving Khatmah data to disk:', err);
+      return false;
+    }
+  });
 }
 
 module.exports = { registerIpcHandlers };

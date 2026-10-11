@@ -56,5 +56,11 @@ contextBridge.exposeInMainWorld('nisabAPI', {
    */
   getAutoStart: () => ipcRenderer.invoke('app:getAutoStart'),
   setAutoStart: (enable) => ipcRenderer.invoke('app:setAutoStart', enable),
+
+  /**
+   * Quran Khatmah Tracker State Persistence
+   */
+  getKhatmahData: () => ipcRenderer.invoke('khatmah:get'),
+  saveKhatmahData: (data) => ipcRenderer.invoke('khatmah:save', data),
 });
 

@@ -20,10 +20,12 @@ import {
   Moon,
   Info,
   Layers,
-  Compass
+  Compass,
+  BookmarkCheck
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import MiniLoader from '../components/MiniLoader';
+import { useKhatmah } from '../hooks/useKhatmah';
 import { normalizeArabic, findArabicMatches } from '../../utils/arabicNormalizer';
 
 // Convert number to Eastern Arabic numerals (١، ٢، ٣...)
@@ -51,7 +53,11 @@ const RECITER_SUBFOLDERS = {
   '5': 'Hani_Rifai_192kbps'
 };
 
-export default function QuranScreen() {
+export default function QuranScreen({ initialTarget, onClearTarget }) {
+  // Khatmah Hook integration
+  const { updateBookmark: updateKhatmahBookmark } = useKhatmah();
+  const [savedKhatmahToast, setSavedKhatmahToast] = useState(false);
+
   // Raw Quran and Surahs Data
   const [surahs, setSurahs] = useState([]);
   const [pagesMap, setPagesMap] = useState({});
@@ -70,6 +76,18 @@ export default function QuranScreen() {
 
   // Page Turn Direction for Realistic 3D Paper Flip ('next' | 'prev')
   const [turnDirection, setTurnDirection] = useState('next');
+
+  // React to incoming navigation target (from Khatmah Tracker)
+  useEffect(() => {
+    if (initialTarget?.page) {
+      const targetP = Math.max(1, Math.min(604, Number(initialTarget.page)));
+      setCurrentPage(targetP);
+      try {
+        localStorage.setItem('nisab_mushaf_last_page', String(targetP));
+      } catch (e) {}
+      if (onClearTarget) onClearTarget();
+    }
+  }, [initialTarget, onClearTarget]);
 
   // Container ref & dimensions for real-time dynamic font scaling on screen resize
   const mainContainerRef = useRef(null);
@@ -1266,6 +1284,26 @@ export default function QuranScreen() {
             >
               <Info className="w-3.5 h-3.5" />
               <span>التفسير</span>
+            </button>
+
+            {/* Save as Khatmah Bookmark Button */}
+            <button
+              onClick={async () => {
+                if (activeAya) {
+                  await updateKhatmahBookmark({
+                    page: activeAya.page || currentPage,
+                    surahId: activeAya.surahNumber,
+                    ayahNumber: activeAya.numberInSurah
+                  });
+                  setSavedKhatmahToast(true);
+                  setTimeout(() => setSavedKhatmahToast(false), 2000);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-semibold transition"
+              title="حفظ موضع هذه الآية كعلامة توقف في خطة الختمة"
+            >
+              <BookmarkCheck className="w-3.5 h-3.5 text-amber-400" />
+              <span>{savedKhatmahToast ? 'تم الحفظ في الختمة' : 'علامة الختمة'}</span>
             </button>
 
             {/* Copy Button */}
