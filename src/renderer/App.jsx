@@ -23,7 +23,6 @@ import AsmaScreen from './screens/AsmaScreen';
 import RadioScreen from './screens/RadioScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import SettingsScreen from './screens/SettingsScreen';
-import ModernNotification from './components/ModernNotification';
 import { usePrayerNotifier } from './hooks/usePrayerNotifier';
 import appIcon from '../assets/icon.png';
 
@@ -326,8 +325,6 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Global In-App Modern Notification Popup Container */}
-      <ModernNotification />
     </div>
   );
 }

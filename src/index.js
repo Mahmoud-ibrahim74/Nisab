@@ -2,12 +2,13 @@ const { app, BrowserWindow, Menu, MenuItem } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { registerIpcHandlers } = require('./main/ipcHandlers');
-const { setupOverlayManager } = require('./main/overlayManager');
+const { setupNativeNotifier } = require('./main/nativeNotifier');
 
-// Set application name and Application User Model ID for Windows Taskbar and Task Manager
+// Set application name and Application User Model ID for Windows Taskbar, Notifications, and Task Manager
+const APP_ID = 'Nisab';
 app.name = 'Nisab';
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.nisab.app');
+  app.setAppUserModelId(APP_ID);
 }
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -47,8 +48,8 @@ const createWindow = () => {
     mainWindow.setIcon(appIconPath);
   }
 
-  // Setup desktop overlay notification manager
-  setupOverlayManager(mainWindow);
+  // Setup native Windows notification manager
+  setupNativeNotifier(mainWindow, appIconPath);
 
   // Completely remove the default menu bar (File, Edit, View, Window)
   mainWindow.setMenu(null);
@@ -98,6 +99,24 @@ app.whenReady().then(() => {
 
   // Register IPC handlers before creating window
   registerIpcHandlers(resourcesDir);
+
+  // On Windows, register Start Menu shortcut with Nisab AppUserModelID so Windows toast displays "Nisab" instead of "Electron"
+  if (process.platform === 'win32') {
+    try {
+      const { shell } = require('electron');
+      const programsDir = path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+      const shortcutPath = path.join(programsDir, 'Nisab.lnk');
+      shell.writeShortcutLink(shortcutPath, 'create', {
+        target: process.execPath,
+        appUserModelId: APP_ID,
+        description: 'Nisab | نِصاب',
+        icon: appIconPath,
+        iconIndex: 0
+      });
+    } catch (err) {
+      console.warn('Could not register Start Menu shortcut for Windows notifications:', err);
+    }
+  }
 
   createWindow();
 

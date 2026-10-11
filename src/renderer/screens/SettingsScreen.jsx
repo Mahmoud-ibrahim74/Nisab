@@ -437,7 +437,7 @@ export default function SettingsScreen() {
                     )}
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    إظهار نوافذ إشعار عصرية منبثقة بمظهر إسلامي أنيق على سطح المكتب وداخل التطبيق عند حلول أوقات الصلاة.
+                    إظهار إشعارات نظام الويندوز (Windows Notifications) على سطح المكتب خارج التطبيق عند حلول أوقات الصلاة والتذكيرات.
                   </p>
                 </div>
 
@@ -446,7 +446,7 @@ export default function SettingsScreen() {
                     type="button"
                     onClick={() => notificationManager.testNotification()}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-xs text-amber-300 border border-amber-500/40 font-semibold transition shadow-sm"
-                    title="تجربة شكل الإشعار المنبثق الآن"
+                    title="تجربة إشعار الويندوز على سطح المكتب الآن"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                     <span>تجربة الإشعار</span>

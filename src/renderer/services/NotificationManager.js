@@ -1,24 +1,21 @@
 /**
  * NotificationManager Class for Nisab
- * Encapsulates in-app modern popup notifications, desktop native notifications,
- * and audio management (Adhan, Prayer Reminders).
+ * Triggers native Windows desktop notifications (outside the app)
+ * and manages Islamic audio alerts (Adhan & Prayer Reminders).
  */
 export class NotificationManager {
   constructor() {
     this.listeners = new Set();
-    this.notifications = [];
     this.audioElement = new Audio();
     this.currentPlayingSound = null;
 
     this.audioElement.onended = () => {
       this.currentPlayingSound = null;
-      this._updateAudioState(null);
     };
 
     this.audioElement.onerror = (e) => {
       console.warn('Audio playback error in NotificationManager:', e);
       this.currentPlayingSound = null;
-      this._updateAudioState(null);
     };
   }
 
@@ -51,67 +48,32 @@ export class NotificationManager {
   }
 
   /**
-   * Subscribe a listener callback to notification updates
-   * @param {Function} listener
-   * @returns {Function} unsubscribe function
+   * Subscribes a listener (backward compatibility)
    */
   subscribe(listener) {
     this.listeners.add(listener);
-    // Immediately emit current list
-    listener([...this.notifications]);
+    listener([]);
     return () => {
       this.listeners.delete(listener);
     };
   }
 
-  _emit() {
-    const list = [...this.notifications];
-    this.listeners.forEach((fn) => {
-      try {
-        fn(list);
-      } catch (err) {
-        console.error('Error in notification listener:', err);
-      }
-    });
-  }
-
-  _updateAudioState(soundName) {
-    this.notifications = this.notifications.map((n) => ({
-      ...n,
-      isPlayingAudio: Boolean(soundName && n.sound === soundName)
-    }));
-    this._emit();
-  }
-
   /**
-   * Displays a modern popup notification
+   * Displays a native Windows notification outside the app
    */
   show({
-    id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
     title,
     message,
     type = 'info', // 'adhan' | 'reminder' | 'success' | 'warning' | 'info' | 'preview'
-    icon = 'bell',
-    duration = 7000, // 0 = sticky
-    sound = null,    // 'azan.mp3' | 'reminder.mp3' | null
-    customAction = null
+    sound = null,   // 'azan.mp3' | 'reminder.mp3' | null
+    silent = false
   }) {
     const settings = this.getSettings();
     const effectiveSound = sound || (type === 'adhan' ? settings.adhanSound : null);
     const isAdhan = type === 'adhan' || effectiveSound === 'azan.mp3' || effectiveSound === settings.adhanSound;
     const isReminder = type === 'reminder' || effectiveSound === 'reminder.mp3';
 
-    // If notifications are disabled and this is not an explicit user preview test, skip visual popup
-    // BUT still play the Adhan sound or reminder if their toggle is enabled!
-    if (!settings.enableNotification && type !== 'preview') {
-      if (isAdhan && settings.enableAdhanSound) {
-        this.playAudio(effectiveSound || 'azan.mp3');
-      } else if (isReminder && settings.enableReminder) {
-        this.playAudio('reminder.mp3');
-      }
-      return null;
-    }
-
+    // Check if sound should be played
     let shouldPlaySound = false;
     if (isAdhan) {
       shouldPlaySound = type === 'preview' || settings.enableAdhanSound;
@@ -121,84 +83,49 @@ export class NotificationManager {
       shouldPlaySound = true;
     }
 
-    const newNotification = {
-      id,
-      title,
-      message,
-      type,
-      icon,
-      duration,
-      sound: shouldPlaySound ? sound : null,
-      isPlayingAudio: shouldPlaySound,
-      createdAt: Date.now(),
-      customAction
-    };
-
-    // Keep max 4 concurrent notifications on screen
-    this.notifications = [newNotification, ...this.notifications.slice(0, 3)];
-    this._emit();
-
-    // Trigger sound if applicable
-    if (shouldPlaySound) {
-      this.playAudio(sound);
+    // Play Adhan or reminder audio if enabled
+    if (shouldPlaySound && effectiveSound) {
+      this.playAudio(effectiveSound);
     }
 
-    // Trigger Desktop Overlay Notification (especially when app is minimized or in background)
-    this.triggerDesktopOverlay(newNotification);
-
-    // Auto dismiss after duration
-    if (duration > 0) {
-      setTimeout(() => {
-        this.dismiss(id);
-      }, duration);
+    // If notifications are disabled and this is not a manual user preview test, skip visual alert
+    if (!settings.enableNotification && type !== 'preview') {
+      return null;
     }
 
-    return id;
-  }
+    // If custom audio is playing, make Windows notification silent so it doesn't chime over the audio
+    const isSilent = silent || shouldPlaySound;
 
-  /**
-   * Triggers the desktop overlay window ONLY when the app is minimized or in background
-   */
-  async triggerDesktopOverlay(notification) {
-    try {
-      if (window.nisabAPI && window.nisabAPI.showOverlayNotification) {
-        let isMinimized = false;
-        if (window.nisabAPI.isAppMinimized) {
-          isMinimized = await window.nisabAPI.isAppMinimized();
-        }
-        const isHiddenOrUnfocused = document.hidden || !document.hasFocus();
-
-        // Only invoke desktop overlay if the app is minimized, in background, or explicitly forced
-        if (isMinimized || isHiddenOrUnfocused || notification.forceOverlay) {
-          window.nisabAPI.showOverlayNotification({
-            id: notification.id,
-            title: notification.title,
-            message: notification.message,
-            type: notification.type,
-            duration: notification.duration || 8000
-          });
-        }
+    // Trigger Native Windows Toast Notification (outside the app window)
+    if (window.nisabAPI?.showNativeNotification) {
+      window.nisabAPI.showNativeNotification({
+        title: title || 'Nisab | نِصاب',
+        message: message || '',
+        silent: isSilent
+      });
+    } else if (typeof window.Notification !== 'undefined') {
+      try {
+        new window.Notification(title || 'Nisab | نِصاب', {
+          body: message || '',
+          silent: isSilent
+        });
+      } catch (err) {
+        console.warn('Fallback Web Notification failed:', err);
       }
-    } catch (e) {
-      console.warn('Desktop overlay notification trigger error:', e);
     }
+
+    return true;
   }
 
   /**
-   * Closes a notification by id
+   * Dismiss notification (legacy stub)
    */
-  dismiss(id) {
-    this.notifications = this.notifications.filter((n) => n.id !== id);
-    this._emit();
-  }
+  dismiss() {}
 
   /**
-   * Clears all notifications
+   * Clear all notifications (legacy stub)
    */
-  clearAll() {
-    this.notifications = [];
-    this._emit();
-  }
+  clearAll() {}
 
   /**
    * Safely plays offline audio file (azan.mp3, reminder.mp3)
@@ -212,11 +139,9 @@ export class NotificationManager {
       this.audioElement.src = audioUri;
       await this.audioElement.play();
       this.currentPlayingSound = soundName;
-      this._updateAudioState(soundName);
     } catch (err) {
       console.warn(`Could not play offline audio [${soundName}]:`, err);
       this.currentPlayingSound = null;
-      this._updateAudioState(null);
     }
   }
 
@@ -231,49 +156,42 @@ export class NotificationManager {
       }
     } catch (e) {}
     this.currentPlayingSound = null;
-    this._updateAudioState(null);
   }
 
-
   /**
-   * Convenience method to trigger a test preview notification
+   * Triggers a test preview notification directly through Windows notification system
    */
   testNotification() {
     return this.show({
       type: 'preview',
-      icon: 'bell',
       title: 'إشعار تجريبي • تطبيق نِصاب',
-      message: 'تم تفعيل نظام الإشعارات المنبثقة بنجاح! ستصلك تنبيهات الصلاة والتذكيرات في وقتها المحدد.',
-      duration: 6000,
-      sound: null
+      message: 'تم تفعيل إشعارات نظام الويندوز بنجاح! ستظهر تنبيهات الصلاة على سطح المكتب خارج التطبيق.',
+      sound: null,
+      silent: false
     });
   }
 
   /**
-   * Triggers an Adhan alert
+   * Triggers an Adhan alert via Windows Notification and Azan audio
    */
   notifyAdhan(prayerArabicName) {
     const settings = this.getSettings();
     return this.show({
       type: 'adhan',
-      icon: 'adhan',
       title: `🕌 حان الآن موعد أذان ${prayerArabicName}`,
       message: `حيّ على الصلاة، حيّ على الفلاح • حان الآن وقت فريضة ${prayerArabicName}`,
-      duration: 30000,
       sound: settings.adhanSound || 'azan.mp3'
     });
   }
 
   /**
-   * Triggers a reminder alert before Adhan
+   * Triggers a reminder alert before Adhan via Windows Notification and reminder audio
    */
   notifyReminder(prayerArabicName, minutesLeft) {
     return this.show({
       type: 'reminder',
-      icon: 'reminder',
       title: `⏰ اقترب موعد صلاة ${prayerArabicName}`,
       message: `متبقي ${minutesLeft} دقيقة على موعد الأذان • استعد وتوضأ للصلاة`,
-      duration: 10000,
       sound: 'reminder.mp3'
     });
   }

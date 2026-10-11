@@ -39,13 +39,10 @@ contextBridge.exposeInMainWorld('nisabAPI', {
   print: () => ipcRenderer.invoke('app:print'),
 
   /**
-   * Desktop Overlay Notification APIs (active when minimized or requested)
+   * Native Windows Notifications (displayed outside the app window)
    */
-  showOverlayNotification: (data) => ipcRenderer.invoke('overlay:show', data),
-  closeOverlayNotification: () => ipcRenderer.invoke('overlay:close'),
-  restoreMainWindow: () => ipcRenderer.invoke('overlay:restoreMain'),
-  isAppMinimized: () => ipcRenderer.invoke('overlay:isMinimized'),
-  onOverlayData: (callback) => ipcRenderer.on('overlay:update', (event, data) => callback(data)),
+  showNativeNotification: (data) => ipcRenderer.invoke('notification:showNative', data),
+  restoreMainWindow: () => ipcRenderer.invoke('app:restoreMain'),
 
   /**
    * Hadith Pen Writer Highlights Disk Persistence
