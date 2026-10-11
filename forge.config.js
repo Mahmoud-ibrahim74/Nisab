@@ -4,6 +4,7 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const path = require('path');
 
 module.exports = {
+  outDir: 'build-out',
   packagerConfig: {
     electronVersion: '22.3.27',
     download: {
@@ -28,7 +29,11 @@ module.exports = {
     ignore: [
       /\.git/,
       /scratch/,
-      /scripts/
+      /scripts/,
+      /\/out($|\/)/,
+      /\/build-out($|\/)/,
+      /\/dist-out($|\/)/,
+      /\/installer($|\/)/
     ]
   },
   rebuildConfig: {},
