@@ -23,6 +23,7 @@ import {
   Compass
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
+import MiniLoader from '../components/MiniLoader';
 import { normalizeArabic, findArabicMatches } from '../../utils/arabicNormalizer';
 
 // Convert number to Eastern Arabic numerals (١، ٢، ٣...)
@@ -117,6 +118,7 @@ export default function QuranScreen() {
     return '1';
   });
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [playingAyaGlobalNum, setPlayingAyaGlobalNum] = useState(null);
   const audioRef = useRef(new Audio());
 
@@ -480,6 +482,21 @@ export default function QuranScreen() {
     }
   };
 
+  // Stable refs for audio lifecycle events
+  const playingAyaGlobalNumRef = useRef(playingAyaGlobalNum);
+  playingAyaGlobalNumRef.current = playingAyaGlobalNum;
+
+  const allAyahsFlatRef = useRef(allAyahsFlat);
+  allAyahsFlatRef.current = allAyahsFlat;
+
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
+
+  const jumpToPageRef = useRef(jumpToPage);
+  jumpToPageRef.current = jumpToPage;
+
+  const playAyaAudioRef = useRef(null);
+
   // 3. Audio Playback Engine
   const playAyaAudio = useCallback(
     (ayah) => {
@@ -493,50 +510,90 @@ export default function QuranScreen() {
       if (playingAyaGlobalNum === ayah.number && isPlaying) {
         audio.pause();
         setIsPlaying(false);
+        setIsAudioLoading(false);
       } else {
+        setIsAudioLoading(true);
+        setPlayingAyaGlobalNum(ayah.number);
+        setActiveAya(ayah);
         audio.src = audioUrl;
-        audio
-          .play()
-          .then(() => {
-            setIsPlaying(true);
-            setPlayingAyaGlobalNum(ayah.number);
-            setActiveAya(ayah);
-          })
-          .catch((err) => {
-            console.warn('Audio playback error:', err);
-            setIsPlaying(false);
-          });
+        audio.load();
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              setIsPlaying(true);
+              setIsAudioLoading(false);
+            })
+            .catch((err) => {
+              console.warn('Audio playback error:', err);
+              setIsPlaying(false);
+              setIsAudioLoading(false);
+            });
+        }
       }
     },
     [playingAyaGlobalNum, isPlaying, selectedReciterId]
   );
+  playAyaAudioRef.current = playAyaAudio;
 
-  // Audio Ended -> Auto advance to next Ayah
+  // Single Audio Lifecycle & Auto-advance Listener (Mounted once)
   useEffect(() => {
     const audio = audioRef.current;
+
+    const handlePlaying = () => {
+      setIsAudioLoading(false);
+      setIsPlaying(true);
+    };
+
+    const handleWaiting = () => {
+      setIsAudioLoading(true);
+    };
+
+    const handleCanPlay = () => {
+      setIsAudioLoading(false);
+    };
+
+    const handleError = (e) => {
+      console.warn('HTMLAudioElement error:', e);
+      setIsAudioLoading(false);
+      setIsPlaying(false);
+    };
+
     const handleEnded = () => {
-      if (playingAyaGlobalNum && allAyahsFlat.length > 0) {
-        const currentIdx = allAyahsFlat.findIndex((a) => a.number === playingAyaGlobalNum);
-        if (currentIdx >= 0 && currentIdx < allAyahsFlat.length - 1) {
-          const nextAyah = allAyahsFlat[currentIdx + 1];
-          // If next ayah is on another page, advance the Mushaf spread automatically!
-          if (nextAyah.page !== currentPage) {
-            jumpToPage(nextAyah.page);
+      const currentGlobalNum = playingAyaGlobalNumRef.current;
+      const flatList = allAyahsFlatRef.current;
+      if (currentGlobalNum && flatList.length > 0) {
+        const currentIdx = flatList.findIndex((a) => a.number === currentGlobalNum);
+        if (currentIdx >= 0 && currentIdx < flatList.length - 1) {
+          const nextAyah = flatList[currentIdx + 1];
+          if (nextAyah.page !== currentPageRef.current) {
+            jumpToPageRef.current?.(nextAyah.page);
           }
-          playAyaAudio(nextAyah);
+          playAyaAudioRef.current?.(nextAyah);
           return;
         }
       }
       setIsPlaying(false);
+      setIsAudioLoading(false);
       setPlayingAyaGlobalNum(null);
     };
 
+    audio.addEventListener('playing', handlePlaying);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('error', handleError);
     audio.addEventListener('ended', handleEnded);
+
     return () => {
+      audio.removeEventListener('playing', handlePlaying);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('error', handleError);
       audio.removeEventListener('ended', handleEnded);
       audio.pause();
+      audio.removeAttribute('src');
     };
-  }, [playingAyaGlobalNum, allAyahsFlat, currentPage, jumpToPage, playAyaAudio]);
+  }, []);
 
   // Tafseer Handler
   const handleOpenTafseer = async (ayah) => {
@@ -665,7 +722,7 @@ export default function QuranScreen() {
     if (!pageData) {
       return (
         <div className="flex-1 flex items-center justify-center p-8 text-amber-500">
-          <Sparkles className="w-8 h-8 animate-spin" />
+          <MiniLoader size="md" color="amber" />
         </div>
       );
     }
@@ -1169,18 +1226,35 @@ export default function QuranScreen() {
               {activeAya.surahName} : {activeAya.numberInSurah}
             </div>
 
-            {/* Play Button */}
+            {/* الاستماع للآية Button */}
             <button
               onClick={() => playAyaAudio(activeAya)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition shadow"
+              className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 min-w-[115px] rounded-xl font-bold transition shadow ${
+                isAudioLoading && playingAyaGlobalNum === activeAya.number
+                  ? 'bg-amber-500/90 text-slate-950'
+                  : playingAyaGlobalNum === activeAya.number && isPlaying
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+              }`}
+              title={
+                isAudioLoading && playingAyaGlobalNum === activeAya.number
+                  ? 'جاري التحميل...'
+                  : playingAyaGlobalNum === activeAya.number && isPlaying
+                  ? 'إيقاف التلاوة'
+                  : 'الاستماع للآية'
+              }
             >
-              {playingAyaGlobalNum === activeAya.number && isPlaying ? (
+              {isAudioLoading && playingAyaGlobalNum === activeAya.number ? (
+                <MiniLoader size="sm" color="current" />
+              ) : playingAyaGlobalNum === activeAya.number && isPlaying ? (
                 <>
-                  <Pause className="w-3.5 h-3.5" /> <span>إيقاف</span>
+                  <Pause className="w-3.5 h-3.5" />
+                  <span>إيقاف</span>
                 </>
               ) : (
                 <>
-                  <Play className="w-3.5 h-3.5" /> <span>تلاوة</span>
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>الاستماع للآية</span>
                 </>
               )}
             </button>
@@ -1247,9 +1321,9 @@ export default function QuranScreen() {
               {/* Tafseer Body */}
               <div className="flex-1 overflow-y-auto text-sm sm:text-base text-slate-200 leading-loose scrollbar-thin scrollbar-thumb-emerald-800 pr-2 text-justify">
                 {tafseerLoading ? (
-                  <div className="py-12 text-center text-emerald-400">
-                    <Sparkles className="w-6 h-6 animate-spin mx-auto mb-2 text-amber-400" />
-                    جاري تحميل التفسير الميسر...
+                  <div className="py-12 text-center text-emerald-400 flex flex-col items-center justify-center gap-3">
+                    <MiniLoader size="md" color="amber" />
+                    <span className="text-amber-200/90 text-sm">جاري تحميل التفسير الميسر...</span>
                   </div>
                 ) : (
                   tafseerContent

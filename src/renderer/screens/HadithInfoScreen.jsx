@@ -22,6 +22,7 @@ import {
   Save
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
+import PrintPreview from './PrintPreview';
 
 // Pen Cursor Data URIs
 const PEN_CURSORS = {
@@ -123,26 +124,87 @@ function getRenderSlices(fullText, highlights) {
 
 /**
  * Accurately extracts start and end character offsets of a window.getSelection()
- * relative to the target element's textContent.
+ * relative to the target element's full text content.
  */
-function getSelectionOffsetsWithin(element) {
+function getSelectionOffsetsWithin(element, fullText = '') {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
 
   const range = selection.getRangeAt(0);
 
-  // Check that the selection is inside the target element
-  if (!element.contains(range.commonAncestorContainer)) return null;
+  // Check if selection intersects the target element
+  const isInside =
+    element.contains(range.startContainer) ||
+    element.contains(range.endContainer) ||
+    (range.commonAncestorContainer && range.commonAncestorContainer.contains(element));
+  if (!isInside) return null;
 
-  const preCaretRange = range.cloneRange();
-  preCaretRange.selectNodeContents(element);
-  preCaretRange.setEnd(range.startContainer, range.startOffset);
+  let charCount = 0;
+  let start = -1;
+  let end = -1;
 
-  const start = preCaretRange.toString().length;
-  const end = start + range.toString().length;
-  const text = range.toString().trim();
+  // Walk all text nodes inside the element to accurately count character offsets
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false
+  );
 
-  return { start, end, text };
+  let node;
+  while ((node = walker.nextNode())) {
+    const nodeLength = node.textContent.length;
+
+    if (node === range.startContainer) {
+      start = charCount + Math.min(range.startOffset, nodeLength);
+    }
+    if (node === range.endContainer) {
+      end = charCount + Math.min(range.endOffset, nodeLength);
+    }
+
+    charCount += nodeLength;
+  }
+
+  // If start or end wasn't found (e.g. selection started or ended on edge/quote/whitespace)
+  if (start === -1) {
+    start = 0;
+  }
+  if (end === -1) {
+    end = charCount;
+  }
+
+  // Normalize if dragged backwards (from left to right in RTL or vice versa)
+  if (start > end) {
+    const temp = start;
+    start = end;
+    end = temp;
+  }
+
+  // Fallback: If range wasn't matched but text was selected, search substring
+  const rawSelectedText = selection.toString().trim();
+  if ((start === -1 || end === -1 || start >= end) && rawSelectedText && fullText) {
+    const foundIdx = fullText.indexOf(rawSelectedText);
+    if (foundIdx !== -1) {
+      start = foundIdx;
+      end = foundIdx + rawSelectedText.length;
+    }
+  }
+
+  if (start === -1 || end === -1 || start >= end) {
+    return null;
+  }
+
+  // Clamp within bounds
+  const maxLen = fullText ? fullText.length : charCount;
+  start = Math.max(0, Math.min(start, maxLen));
+  end = Math.max(start, Math.min(end, maxLen));
+
+  if (start >= end) return null;
+
+  const resolvedText = fullText ? fullText.slice(start, end).trim() : rawSelectedText;
+  if (!resolvedText) return null;
+
+  return { start, end, text: resolvedText };
 }
 
 export default function HadithInfoScreen({ hadithData, onBack }) {
@@ -167,6 +229,7 @@ export default function HadithInfoScreen({ hadithData, onBack }) {
   const [penMode, setPenMode] = useState('highlight'); // 'highlight' | 'eraser'
   const [highlights, setHighlights] = useState([]);
   const [saveStatusMsg, setSaveStatusMsg] = useState('');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   // Ref to the text container containing only hadith.arabic
   const hadithTextContainerRef = useRef(null);
@@ -240,19 +303,15 @@ export default function HadithInfoScreen({ hadithData, onBack }) {
       } catch (err) {
         console.error('Failed to save highlights to disk:', err);
       }
-
-      // 3. Feedback status toast
-      setSaveStatusMsg(message);
-      setTimeout(() => setSaveStatusMsg(''), 2500);
     },
     [hadithKey]
   );
 
   // MouseUp Selection Handler on Hadith Text
-  const handleMouseUpText = () => {
-    if (!isPenActive || penMode === 'eraser' || !hadithTextContainerRef.current) return;
+  const handleMouseUpText = useCallback(() => {
+    if (!isPenActive || penMode === 'eraser' || !hadithTextContainerRef.current || !hadith?.arabic) return;
 
-    const offsets = getSelectionOffsetsWithin(hadithTextContainerRef.current);
+    const offsets = getSelectionOffsetsWithin(hadithTextContainerRef.current, hadith.arabic);
     if (!offsets || offsets.start >= offsets.end || !offsets.text) return;
 
     // Add new highlight
@@ -275,7 +334,24 @@ export default function HadithInfoScreen({ hadithData, onBack }) {
     if (sel) sel.removeAllRanges();
 
     saveHighlightsToDiskAndStorage(updated, 'تم حفظ المقطع المظلل على القرص 💾');
-  };
+  }, [isPenActive, penMode, hadith?.arabic, penColor, highlights, saveHighlightsToDiskAndStorage]);
+
+  // Global document mouseup listener so releasing the mouse in card whitespace or padding still highlights!
+  useEffect(() => {
+    if (!isPenActive || penMode === 'eraser') return;
+
+    const onDocMouseUp = () => {
+      // Small timeout to allow browser selection to finish settling
+      setTimeout(() => {
+        handleMouseUpText();
+      }, 20);
+    };
+
+    document.addEventListener('mouseup', onDocMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', onDocMouseUp);
+    };
+  }, [isPenActive, penMode, handleMouseUpText]);
 
   // Click on a highlighted text span
   const handleHighlightClick = (highlightId, e) => {
@@ -284,14 +360,14 @@ export default function HadithInfoScreen({ hadithData, onBack }) {
 
     // In pen mode or eraser mode, clicking a highlight deletes it
     const updated = highlights.filter((h) => h.id !== highlightId);
-    saveHighlightsToDiskAndStorage(updated, 'تمت إزالة التظليل وتحديث القرص 🗑️');
+    saveHighlightsToDiskAndStorage(updated, '');
   };
 
   // Clear all highlights for this Hadith
   const handleClearAllHighlights = () => {
     if (highlights.length === 0) return;
     if (window.confirm('هل تريد مسح جميع التظليلات المحفوظة لهذا الحديث على القرص؟')) {
-      saveHighlightsToDiskAndStorage([], 'تم مسح جميع التظليلات من القرص');
+      saveHighlightsToDiskAndStorage([], '');
     }
   };
 
@@ -406,18 +482,9 @@ export default function HadithInfoScreen({ hadithData, onBack }) {
     });
   };
 
-  // Print Hadith via system dialogue
-  const handlePrint = async () => {
-    try {
-      if (window.nisabAPI?.print) {
-        await window.nisabAPI.print();
-      } else {
-        window.print();
-      }
-    } catch (err) {
-      console.error('Print error:', err);
-      window.print();
-    }
+  // Open Print Preview Screen
+  const handlePrint = () => {
+    setShowPrintPreview(true);
   };
 
   // Prepared render slices for Hadith text
@@ -649,20 +716,10 @@ export default function HadithInfoScreen({ hadithData, onBack }) {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full min-w-0 rounded-3xl p-5 sm:p-8 md:p-10 lg:p-12 bg-gradient-to-b from-slate-900/90 via-slate-900/80 to-emerald-950/40 border border-amber-500/30 shadow-2xl backdrop-blur-xl overflow-hidden select-text text-right printable-hadith-card"
+          className="relative w-full min-w-0 rounded-3xl p-5 sm:p-8 md:p-10 lg:p-12 bg-gradient-to-b from-slate-900/90 via-slate-900/80 to-emerald-950/40 border border-amber-500/30 shadow-2xl backdrop-blur-xl overflow-hidden select-text text-right"
         >
           {/* Top Gold Border Glow */}
           <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent no-print" />
-
-          {/* Official Document Banner visible ONLY when printing */}
-          <div className="hidden print:block text-center pb-6 mb-6 border-b-2 border-emerald-800">
-            <div className="font-serif text-2xl font-bold text-slate-900 mb-1">
-              بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
-            </div>
-            <div className="text-sm font-semibold text-emerald-800 font-serif">
-              موسوعة الحديث الشريف • تسعة دواوين السنة النبوية
-            </div>
-          </div>
 
           {/* Metadata Header Banner */}
           <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-emerald-900/50 select-none">
@@ -807,6 +864,18 @@ export default function HadithInfoScreen({ hadithData, onBack }) {
           </div>
         )}
       </div>
+
+      {/* Live Interactive Print Preview Screen */}
+      {showPrintPreview && (
+        <PrintPreview
+          hadith={hadith}
+          bookTitle={bookTitle}
+          bookAuthor={bookAuthor}
+          chapterName={chapterName}
+          highlights={highlights}
+          onClose={() => setShowPrintPreview(false)}
+        />
+      )}
     </div>
   );
 }
