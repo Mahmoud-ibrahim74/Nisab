@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, MenuItem } = require('electron');
+const { app, BrowserWindow, Menu, MenuItem, nativeImage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { registerIpcHandlers } = require('./main/ipcHandlers');
@@ -22,6 +22,7 @@ const resourcesDir = path.join(__dirname, 'Resources');
 const iconIco = path.join(__dirname, 'assets', 'icon.ico');
 const iconPng = path.join(__dirname, 'assets', 'icon.png');
 const appIconPath = (process.platform === 'win32' && fs.existsSync(iconIco)) ? iconIco : iconPng;
+const appIcon = nativeImage.createFromPath(appIconPath);
 
 const createWindow = () => {
   // Create the browser window with modern dimensions & dark emerald background
@@ -32,7 +33,7 @@ const createWindow = () => {
     minHeight: 520,
     backgroundColor: '#031713',
     title: 'Nisab | نِصاب',
-    icon: appIconPath,
+    icon: appIcon.isEmpty() ? appIconPath : appIcon,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -44,8 +45,8 @@ const createWindow = () => {
   });
 
   // Explicitly apply window and taskbar icon on Windows
-  if (mainWindow.setIcon) {
-    mainWindow.setIcon(appIconPath);
+  if (mainWindow.setIcon && !appIcon.isEmpty()) {
+    mainWindow.setIcon(appIcon);
   }
 
   // Setup native Windows notification manager

@@ -35,13 +35,13 @@ const TABS = [
   { id: 'dashboard', label: 'الرئيسية', icon: Home },
   { id: 'quran', label: 'القرآن الكريم', icon: BookOpen },
   { id: 'khatmah', label: 'متابعة الختمة', icon: BookmarkCheck },
-  { id: 'zakat', label: 'حاسبة الزكاة', icon: Coins, badge: 'نِصاب' },
+  { id: 'zakat', label: 'حاسبة الزكاة', icon: Coins },
   { id: 'hadith', label: 'الحديث الشريف', icon: Scroll },
   { id: 'azkar', label: 'الأذكار', icon: Heart },
   { id: 'roqia', label: 'الرقية الشرعية', icon: ShieldCheck },
   { id: 'asma', label: 'أسماء الله الحسنى', icon: Sparkles },
   { id: 'radio', label: 'إذاعة القرآن', icon: Radio, badge: 'Live' },
-  { id: 'calendar', label: 'التقويم الهجري', icon: Calendar, badge: 'Beta' },
+  { id: 'calendar', label: 'التقويم الهجري', icon: Calendar, badge: 'Soon' },
   { id: 'settings', label: 'الإعدادات', icon: Settings },
 ];
 
