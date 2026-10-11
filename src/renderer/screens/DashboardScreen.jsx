@@ -17,7 +17,8 @@ import {
   Check,
   Wifi,
   WifiOff,
-  RefreshCw
+  RefreshCw,
+  Coins
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import { getPrayerSchedule } from '../../utils/prayerTimes';
@@ -566,10 +567,24 @@ export default function DashboardScreen({ onNavigate }) {
         </motion.div>
 
         {/* Quick Navigation Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5">
+          <button
+            onClick={() => onNavigate && onNavigate('zakat')}
+            className="group p-4 sm:p-5 rounded-3xl bg-slate-900/80 border border-emerald-900/60 hover:border-amber-400/60 transition-all text-right flex items-center justify-between shadow-xl"
+          >
+            <div>
+              <div className="p-2.5 sm:p-3 w-fit rounded-2xl bg-gradient-to-br from-amber-500/20 to-emerald-950 text-amber-400 border border-amber-500/40 mb-3 group-hover:scale-110 transition-transform">
+                <Coins className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-amber-200">حاسبة الزكاة (نِصاب)</h3>
+              <p className="text-xs text-slate-400 mt-1">حساب زكاة المال، الذهب، والفطر</p>
+            </div>
+            <ChevronLeft className="w-5 h-5 text-slate-500 group-hover:text-amber-400 group-hover:-translate-x-1 transition-all" />
+          </button>
+
           <button
             onClick={() => onNavigate && onNavigate('quran')}
-            className="group p-4 sm:p-6 rounded-3xl bg-slate-900/80 border border-emerald-900/60 hover:border-amber-400/60 transition-all text-right flex items-center justify-between shadow-xl"
+            className="group p-4 sm:p-5 rounded-3xl bg-slate-900/80 border border-emerald-900/60 hover:border-amber-400/60 transition-all text-right flex items-center justify-between shadow-xl"
           >
             <div>
               <div className="p-3 w-fit rounded-2xl bg-emerald-950 text-amber-400 border border-emerald-800/60 mb-3 group-hover:scale-110 transition-transform">
