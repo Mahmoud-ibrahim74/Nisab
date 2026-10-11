@@ -3,7 +3,7 @@
 
 #define MyAppName "نصاب (Nisab)"
 #define MyAppVersion "1.0"
-#define MyAppPublisher "emthanyplatform-eg"
+#define MyAppPublisher "Mahmoud-Ibrahim"
 #define MyAppURL "https://github.com/Mahmoud-ibrahim74/Nisab"
 #define MyAppExeName "Nisab.exe"
 #define MyAppDescription "نصاب - تطبيق إسلامي شامل للقرآن الكريم، الأذكار، مواقيت الصلاة، متابعة الختمة، وحساب الزكاة"

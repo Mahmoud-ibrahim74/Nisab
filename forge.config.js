@@ -15,15 +15,15 @@ module.exports = {
     appBundleId: 'com.nisab.app',
     appVersion: '1.0.0',
     buildVersion: '1.0.0',
-    appCopyright: 'Copyright © 2026 Nisab (emthanyplatform-eg)',
+    appCopyright: 'Copyright © 2026 Nisab (Mahmoud Ibrahim)',
     icon: path.resolve(__dirname, 'src/assets/icon'),
     win32metadata: {
-      CompanyName: 'emthanyplatform-eg',
-      FileDescription: 'نصاب (Nisab) - تطبيق إسلامي شامل للقرآن الكريم، الأذكار، مواقيت الصلاة، متابعة الختمة، وحساب الزكاة',
+      CompanyName: 'Mahmoud-Ibrahim',
+      FileDescription: 'نصاب (Nisab) - تطبيق إسلامي شامل',
       OriginalFilename: 'Nisab.exe',
       ProductName: 'Nisab',
       InternalName: 'Nisab',
-      legalCopyright: 'Copyright © 2026 Nisab (emthanyplatform-eg)'
+      legalCopyright: 'Copyright © 2026 Nisab (Mahmoud Ibrahim)'
     },
     ignore: [
       /\.git/,
@@ -38,8 +38,8 @@ module.exports = {
       config: {
         name: 'Nisab',
         title: 'Nisab',
-        authors: 'emthanyplatform-eg',
-        description: 'نصاب (Nisab) - تطبيق إسلامي شامل للقرآن الكريم، الأذكار، مواقيت الصلاة، متابعة الختمة، وحساب الزكاة',
+        authors: 'Mahmoud-Ibrahim',
+        description: 'نصاب (Nisab) - تطبيق إسلامي شامل',
         version: '1.0.0',
         setupIcon: path.resolve(__dirname, 'src/assets/icon.ico'),
         setupExe: 'Nisab-1.0-Setup.exe',

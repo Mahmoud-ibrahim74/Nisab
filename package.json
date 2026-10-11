@@ -3,7 +3,7 @@
   "productName": "Nisab",
   "version": "1.0.0",
   "private": true,
-  "description": "نصاب (Nisab) - تطبيق إسلامي شامل للقرآن الكريم، الأذكار، مواقيت الصلاة، متابعة الختمة، وحساب الزكاة",
+  "description": "نصاب (Nisab) - تطبيق إسلامي شامل",
   "keywords": [
     "nisab",
     "quran",
@@ -15,7 +15,7 @@
   ],
   "license": "MIT",
   "author": {
-    "name": "emthanyplatform-eg",
+    "name": "Mahmoud Ibrahim",
     "email": "mhmoud.ibrahim74@gmail.com"
   },
   "main": "./src/index.js",
