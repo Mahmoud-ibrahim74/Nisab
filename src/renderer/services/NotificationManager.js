@@ -1,3 +1,5 @@
+import { getSurahForPage } from '../utils/khatmahConstants';
+
 /**
  * NotificationManager Class for Nisab
  * Triggers native Windows desktop notifications (outside the app)
@@ -31,6 +33,7 @@ export class NotificationManager {
           enableNotification: parsed.enableNotification !== undefined ? parsed.enableNotification : true,
           enableAdhanSound: parsed.enableAdhanSound !== undefined ? parsed.enableAdhanSound : true,
           enableReminder: parsed.enableReminder !== undefined ? parsed.enableReminder : true,
+          enableKhatmahReminder: parsed.enableKhatmahReminder !== undefined ? parsed.enableKhatmahReminder : true,
           reminderMinutes: parsed.reminderMinutes || 15,
           adhanSound: parsed.adhanSound || 'azan.mp3'
         };
@@ -42,6 +45,7 @@ export class NotificationManager {
       enableNotification: true,
       enableAdhanSound: true,
       enableReminder: true,
+      enableKhatmahReminder: true,
       reminderMinutes: 15,
       adhanSound: 'azan.mp3'
     };
@@ -194,6 +198,104 @@ export class NotificationManager {
       message: `متبقي ${minutesLeft} دقيقة على موعد الأذان • استعد وتوضأ للصلاة`,
       sound: 'reminder.mp3'
     });
+  }
+
+  /**
+   * Triggers a desktop notification to remind user to start or continue their Khatmah today
+   */
+  notifyKhatmahReminder({ hasActiveKhatmah = false, currentPage = 1, surahName = '', todayPages = 20 } = {}) {
+    const settings = this.getSettings();
+    if (!settings.enableNotification || settings.enableKhatmahReminder === false) {
+      return null;
+    }
+
+    if (!hasActiveKhatmah) {
+      return this.show({
+        type: 'reminder',
+        title: '📖 تذكير بختمة القرآن الكريم • نِصاب',
+        message: 'لم تبدأ ختمة للقرآن الكريم بعد! ابدأ رحلتك المباركة اليوم وحدد خطتك لقراءة كتاب الله الكريم.',
+        sound: 'reminder.mp3'
+      });
+    }
+
+    const surahText = surahName ? ` سورة ${surahName}` : '';
+    return this.show({
+      type: 'reminder',
+      title: '📖 تذكير بالورد القرآني اليومي • نِصاب',
+      message: `لم تبدأ وردك القرآني اليوم بعد (${todayPages} صفحة تبدأ من ص ${currentPage}${surahText ? ' • ' + surahText : ''}). بادر بإتمام وردك المبارك اليوم! ✨`,
+      sound: 'reminder.mp3'
+    });
+  }
+
+  /**
+   * Checks if user has started/completed today's Khatmah, and alerts them if not yet started.
+   * Tracks alert status in localStorage so the user is only alerted once a day unless forced.
+   */
+  checkAndAlertKhatmah(khatmahData = null, force = false) {
+    const settings = this.getSettings();
+    if (!settings.enableNotification || settings.enableKhatmahReminder === false) {
+      return false;
+    }
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    // Determine khatmah state
+    let state = khatmahData;
+    if (!state) {
+      try {
+        const saved = localStorage.getItem('nisab_khatmah_data');
+        if (saved) {
+          state = JSON.parse(saved);
+        }
+      } catch (e) {}
+    }
+
+    const hasActive = Boolean(state?.hasActiveKhatmah && state?.plan);
+    const lastDate = state?.lastCompletedDate
+      ? new Date(state.lastCompletedDate).toISOString().split('T')[0]
+      : null;
+    const isCompletedToday = lastDate === todayStr;
+
+    // If active khatmah is already finished for today, no need to alert
+    if (hasActive && isCompletedToday) {
+      return false;
+    }
+
+    // Check localStorage flag for today to ensure we only alert once a day
+    const alertKey = hasActive
+      ? `nisab_khatmah_werd_alerted_${todayStr}`
+      : `nisab_khatmah_noplan_alerted_${todayStr}`;
+
+    if (!force && localStorage.getItem(alertKey)) {
+      return false; // Already alerted today
+    }
+
+    let surahName = '';
+    const currentPage = state?.currentPage || 1;
+    const todayPages = state?.plan?.dailyPages || 20;
+
+    try {
+      const surah = getSurahForPage(currentPage);
+      if (surah) {
+        surahName = surah.name;
+      }
+    } catch (e) {}
+
+    const alerted = this.notifyKhatmahReminder({
+      hasActiveKhatmah: hasActive,
+      currentPage,
+      surahName,
+      todayPages
+    });
+
+    if (alerted) {
+      try {
+        localStorage.setItem(alertKey, new Date().toISOString());
+      } catch (e) {}
+    }
+
+    return alerted;
   }
 }
 

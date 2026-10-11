@@ -26,6 +26,7 @@ import RadioScreen from './screens/RadioScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import { usePrayerNotifier } from './hooks/usePrayerNotifier';
+import { useKhatmahNotifier } from './hooks/useKhatmahNotifier';
 import appIcon from '../assets/icon.png';
 
 const TABS = [
@@ -49,6 +50,9 @@ export default function App() {
 
   // Background prayer alert scheduling
   usePrayerNotifier();
+
+  // Background Khatmah daily alert scheduling
+  useKhatmahNotifier();
 
   useEffect(() => {
     const handleResize = () => {

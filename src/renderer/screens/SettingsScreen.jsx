@@ -134,6 +134,16 @@ export default function SettingsScreen() {
     } catch (e) {}
     return false;
   });
+  const [enableKhatmahReminder, setEnableKhatmahReminder] = useState(() => {
+    try {
+      const s = localStorage.getItem('nisab_user_settings');
+      if (s) {
+        const p = JSON.parse(s);
+        return p.enableKhatmahReminder !== undefined ? p.enableKhatmahReminder : true;
+      }
+    } catch (e) {}
+    return true;
+  });
 
   // Audio preview element
   const [audioElement] = useState(() => new Audio());
@@ -240,6 +250,7 @@ export default function SettingsScreen() {
       enableAdhanSound,
       enableReminder,
       reminderMinutes,
+      enableKhatmahReminder,
       enableStartup,
       adhanSound: enableAdhanSound ? 'azan.mp3' : 'reminder.mp3'
     };
@@ -593,6 +604,46 @@ export default function SettingsScreen() {
                   </motion.div>
                 )}
               </AnimatePresence>
+            </div>
+
+            {/* 4. Switch Toggle: Enable Daily Khatmah Reminder */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-950 border border-emerald-900/40 hover:border-emerald-800/60 transition">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm sm:text-base font-bold text-slate-100">
+                      تنبيه الورد اليومي للختمة
+                    </span>
+                    {enableKhatmahReminder && (
+                      <span className="text-[10px] bg-emerald-900/80 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-700/50 font-medium">
+                        مفعل
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    إرسال إشعار مكتبي يومي لتذكيرك بقراءة ورد الختمة أو البدء في ختمة جديدة إذا لم تكن قد بدأت اليوم بعد.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 self-start sm:self-center shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => notificationManager.notifyKhatmahReminder({ hasActiveKhatmah: true, currentPage: 1, surahName: 'الفاتحة', todayPages: 20 })}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-xs text-amber-300 border border-amber-500/40 font-semibold transition shadow-sm"
+                    title="تجربة تنبيه الختمة الآن"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>تجربة تنبيه الختمة</span>
+                  </button>
+
+                  <SwitchToggle
+                    id="toggle-khatmah-reminder"
+                    checked={enableKhatmahReminder}
+                    onChange={setEnableKhatmahReminder}
+                    ariaLabel="تفعيل تنبيه الورد اليومي للختمة"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>

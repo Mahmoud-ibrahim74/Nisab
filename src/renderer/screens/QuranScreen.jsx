@@ -53,6 +53,10 @@ const RECITER_SUBFOLDERS = {
   '5': 'Hani_Rifai_192kbps'
 };
 
+// Session-scoped flag ensuring intro recitation only plays once per application session/lifetime
+const INTRO_AUDIO_SESSION_KEY = 'nisab_quran_intro_played_session';
+let hasPlayedIntroThisSession = false;
+
 export default function QuranScreen({ initialTarget, onClearTarget }) {
   // Khatmah Hook integration
   const { updateBookmark: updateKhatmahBookmark } = useKhatmah();
@@ -139,6 +143,10 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [playingAyaGlobalNum, setPlayingAyaGlobalNum] = useState(null);
   const audioRef = useRef(new Audio());
+
+  // Intro Ayah Recitation State ("وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا")
+  const [showIntroPill, setShowIntroPill] = useState(false);
+  const introAudioRef = useRef(null);
 
   // Dropdown menus state
   const [surahDropdownOpen, setSurahDropdownOpen] = useState(false);
@@ -230,6 +238,89 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
     };
     window.addEventListener('nisab-settings-changed', handleSettingsChanged);
     return () => window.removeEventListener('nisab-settings-changed', handleSettingsChanged);
+  }, []);
+
+  // Play "وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا" once only on the first visit to QuranScreen during app lifetime
+  useEffect(() => {
+    let isAlreadyPlayed = hasPlayedIntroThisSession;
+    try {
+      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(INTRO_AUDIO_SESSION_KEY) === 'true') {
+        isAlreadyPlayed = true;
+      }
+    } catch (e) {}
+
+    if (isAlreadyPlayed) return;
+
+    hasPlayedIntroThisSession = true;
+    try {
+      sessionStorage.setItem(INTRO_AUDIO_SESSION_KEY, 'true');
+    } catch (e) {}
+
+    let isCancelled = false;
+    const audio = new Audio();
+    introAudioRef.current = audio;
+
+    async function startIntroRecitation() {
+      try {
+        let audioSrc = null;
+        if (window.nisabAPI?.getOfflineAudio) {
+          try {
+            audioSrc = await window.nisabAPI.getOfflineAudio('rattil.mp3');
+          } catch (e) {}
+        }
+
+        if (!audioSrc) {
+          audioSrc = 'https://everyayah.com/data/Alafasy_128kbps/073004.mp3';
+        }
+
+        if (isCancelled) return;
+
+        audio.src = audioSrc;
+        audio.volume = 0.85;
+
+        setShowIntroPill(true);
+
+        audio.onended = () => {
+          setShowIntroPill(false);
+          introAudioRef.current = null;
+        };
+
+        audio.onerror = () => {
+          setShowIntroPill(false);
+          introAudioRef.current = null;
+        };
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.log('Intro audio autoplay notice:', err);
+            setShowIntroPill(false);
+          });
+        }
+
+        setTimeout(() => {
+          if (!isCancelled) {
+            setShowIntroPill(false);
+          }
+        }, 6500);
+      } catch (err) {
+        console.warn('Failed to play intro Ayah recitation:', err);
+      }
+    }
+
+    const timer = setTimeout(startIntroRecitation, 350);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+      if (audio) {
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+        } catch (e) {}
+      }
+      introAudioRef.current = null;
+    };
   }, []);
 
   // Handle responsive dynamic font scaling on window / container resize
@@ -523,6 +614,16 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
       const aPad = String(ayah.numberInSurah).padStart(3, '0');
       const reciterFolder = RECITER_SUBFOLDERS[selectedReciterId] || 'Alafasy_128kbps';
       const audioUrl = `https://everyayah.com/data/${reciterFolder}/${sPad}${aPad}.mp3`;
+
+      // Stop intro recitation if active
+      if (introAudioRef.current) {
+        try {
+          introAudioRef.current.pause();
+          introAudioRef.current.currentTime = 0;
+          introAudioRef.current = null;
+        } catch (e) {}
+        setShowIntroPill(false);
+      }
 
       const audio = audioRef.current;
       if (playingAyaGlobalNum === ayah.number && isPlaying) {
@@ -985,6 +1086,26 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
       dir="rtl"
     >
       <ArabesquePattern className="opacity-10 text-emerald-500 pointer-events-none" />
+
+      {/* Visual notification badge when playing the intro Ayah */}
+      <AnimatePresence>
+        {showIntroPill && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 border border-amber-500/60 text-amber-300 shadow-2xl flex items-center gap-3 backdrop-blur-xl pointer-events-none"
+          >
+            <Volume2 className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
+            <span className="font-serif font-bold text-sm sm:text-base text-amber-200">
+              ﴿ وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا ﴾
+            </span>
+            <span className="text-[10px] text-emerald-400 font-sans border-r border-emerald-800 pr-2.5">
+              سورة المزمل
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Top Quran Bar: Navigation, Surah/Juz Pickers, Search, Audio & Themes */}
       <header className="relative z-20 border-b border-emerald-900/50 bg-slate-950/90 backdrop-blur-md px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-xl shrink-0">
