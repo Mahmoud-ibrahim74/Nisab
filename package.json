@@ -3,8 +3,16 @@
   "productName": "Nisab",
   "version": "1.0.0",
   "private": true,
-  "description": "My Electron application description",
-  "keywords": [],
+  "description": "نصاب (Nisab) - تطبيق إسلامي شامل للقرآن الكريم، الأذكار، مواقيت الصلاة، متابعة الختمة، وحساب الزكاة",
+  "keywords": [
+    "nisab",
+    "quran",
+    "islamic",
+    "azkar",
+    "khatmah",
+    "zakat",
+    "prayer-times"
+  ],
   "license": "MIT",
   "author": {
     "name": "emthanyplatform-eg",
@@ -17,6 +25,7 @@
     "start": "npm run build && electron-forge start",
     "package": "npm run build && electron-forge package",
     "make": "npm run build && electron-forge make",
+    "installer": "node scripts/build-installer.js",
     "release": "electron-forge release",
     "lint": "echo \"No linting configured\""
   },
@@ -45,6 +54,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "autoprefixer": "^10.6.1",
     "electron": "22.3.27",
+    "innosetup-compiler": "^6.3.1",
     "postcss": "^8.5.29",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3",

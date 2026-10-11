@@ -12,10 +12,23 @@ module.exports = {
     asar: true,
     name: 'Nisab',
     executableName: 'Nisab',
+    appBundleId: 'com.nisab.app',
+    appVersion: '1.0.0',
+    buildVersion: '1.0.0',
+    appCopyright: 'Copyright © 2026 Nisab (emthanyplatform-eg)',
     icon: path.resolve(__dirname, 'src/assets/icon'),
+    win32metadata: {
+      CompanyName: 'emthanyplatform-eg',
+      FileDescription: 'نصاب (Nisab) - تطبيق إسلامي شامل للقرآن الكريم، الأذكار، مواقيت الصلاة، متابعة الختمة، وحساب الزكاة',
+      OriginalFilename: 'Nisab.exe',
+      ProductName: 'Nisab',
+      InternalName: 'Nisab',
+      legalCopyright: 'Copyright © 2026 Nisab (emthanyplatform-eg)'
+    },
     ignore: [
       /\.git/,
-      /scratch/
+      /scratch/,
+      /scripts/
     ]
   },
   rebuildConfig: {},
@@ -24,7 +37,13 @@ module.exports = {
       name: '@electron-forge/maker-squirrel',
       config: {
         name: 'Nisab',
+        title: 'Nisab',
+        authors: 'emthanyplatform-eg',
+        description: 'نصاب (Nisab) - تطبيق إسلامي شامل للقرآن الكريم، الأذكار، مواقيت الصلاة، متابعة الختمة، وحساب الزكاة',
+        version: '1.0.0',
         setupIcon: path.resolve(__dirname, 'src/assets/icon.ico'),
+        setupExe: 'Nisab-1.0-Setup.exe',
+        loadingGif: path.resolve(__dirname, 'src/assets/install-spinner.gif'),
       },
     },
     {
