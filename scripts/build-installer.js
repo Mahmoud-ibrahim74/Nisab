@@ -2,7 +2,11 @@ const inno = require('innosetup-compiler');
 const path = require('path');
 const fs = require('fs');
 
+const generateBitmaps = require('./generate-bitmaps');
+
 async function build() {
+  await generateBitmaps();
+
   const issPath = path.resolve(__dirname, '../installer/nisab-setup.iss');
   const outDir = path.resolve(__dirname, '../out/make/installer');
 
