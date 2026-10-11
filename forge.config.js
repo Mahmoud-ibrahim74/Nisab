@@ -5,6 +5,10 @@ const path = require('path');
 
 module.exports = {
   packagerConfig: {
+    electronVersion: '22.3.27',
+    download: {
+      unsafelyDisableChecksums: true,
+    },
     asar: true,
     name: 'Nisab',
     executableName: 'Nisab',
