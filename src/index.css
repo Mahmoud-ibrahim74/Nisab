@@ -43,6 +43,10 @@
     overflow: hidden;
   }
 
+  button {
+    color: inherit;
+  }
+
   /* Force all general app typography to use the local Tajawal font */
   .font-sans,
   .font-serif {
