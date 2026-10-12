@@ -20,12 +20,10 @@ import {
   Moon,
   Info,
   Layers,
-  Compass,
-  BookmarkCheck
+  Compass
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import MiniLoader from '../components/MiniLoader';
-import { useKhatmah } from '../hooks/useKhatmah';
 import { normalizeArabic, findArabicMatches } from '../../utils/arabicNormalizer';
 
 // Convert number to Eastern Arabic numerals (١، ٢، ٣...)
@@ -58,10 +56,6 @@ const INTRO_AUDIO_SESSION_KEY = 'nisab_quran_intro_played_session';
 let hasPlayedIntroThisSession = false;
 
 export default function QuranScreen({ initialTarget, onClearTarget }) {
-  // Khatmah Hook integration
-  const { updateBookmark: updateKhatmahBookmark } = useKhatmah();
-  const [savedKhatmahToast, setSavedKhatmahToast] = useState(false);
-
   // Raw Quran and Surahs Data
   const [surahs, setSurahs] = useState([]);
   const [pagesMap, setPagesMap] = useState({});
@@ -1400,7 +1394,7 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 15 }}
-            className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 w-auto min-w-[580px] sm:min-w-[670px] max-w-[94vw] px-5 sm:px-6 py-3 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3 sm:gap-4 text-xs sm:text-sm select-none"
+            className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 w-auto min-w-[480px] sm:min-w-[540px] max-w-[94vw] px-5 sm:px-6 py-3 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3 sm:gap-4 text-xs sm:text-sm select-none"
           >
             <div className="font-serif text-amber-300 font-bold border-l border-emerald-800/80 pl-3.5 sm:pl-4 text-sm sm:text-base shrink-0">
               {activeAya.surahName} : {activeAya.numberInSurah}
@@ -1447,27 +1441,6 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
             >
               <Info className="w-4 h-4" />
               <span>التفسير</span>
-            </button>
-
-            {/* Save as Khatmah Bookmark Button */}
-            <button
-              type="button"
-              onClick={async () => {
-                if (activeAya) {
-                  await updateKhatmahBookmark({
-                    page: activeAya.page || currentPage,
-                    surahId: activeAya.surahNumber,
-                    ayahNumber: activeAya.numberInSurah
-                  });
-                  setSavedKhatmahToast(true);
-                  setTimeout(() => setSavedKhatmahToast(false), 2000);
-                }
-              }}
-              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-semibold transition"
-              title="حفظ موضع هذه الآية كعلامة توقف في خطة الختمة"
-            >
-              <BookmarkCheck className="w-4 h-4 text-amber-400" />
-              <span>{savedKhatmahToast ? 'تم الحفظ في الختمة' : 'علامة الختمة'}</span>
             </button>
 
             {/* Copy Button */}
