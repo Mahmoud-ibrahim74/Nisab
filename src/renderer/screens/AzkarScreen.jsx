@@ -277,7 +277,7 @@ export default function AzkarScreen() {
                       className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-2.5 rounded-2xl font-bold transition-all shadow-lg select-none text-xs sm:text-sm ${
                         isCompleted
                           ? 'bg-emerald-600 text-white cursor-default'
-                          : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 active:scale-95'
+                          : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold active:scale-95 shadow-amber-900/30'
                       }`}
                     >
                       {isCompleted ? (
@@ -287,8 +287,8 @@ export default function AzkarScreen() {
                         </>
                       ) : (
                         <>
-                          <span>سبّح</span>
-                          <span className="font-mono bg-black/20 px-2 py-0.5 rounded-lg">
+                          <span className="text-white font-bold">سبّح</span>
+                          <span className="font-mono bg-black/30 text-white px-2 py-0.5 rounded-lg font-bold">
                             {current} / {target}
                           </span>
                         </>

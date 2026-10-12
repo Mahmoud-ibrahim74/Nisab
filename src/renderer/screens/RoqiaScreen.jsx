@@ -344,8 +344,8 @@ export default function RoqiaScreen() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`px-3.5 sm:px-4 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm ${
                       isActive
-                        ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20'
-                        : 'bg-slate-900/80 hover:bg-emerald-950/80 border border-emerald-900/50 text-slate-300'
+                        ? 'bg-amber-600 text-white font-bold shadow-md shadow-amber-900/30'
+                        : 'bg-slate-900/80 hover:bg-emerald-950/80 border border-emerald-900/50 text-slate-300 hover:text-white'
                     }`}
                   >
                     {tab.label}
@@ -514,7 +514,7 @@ export default function RoqiaScreen() {
                       className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-2.5 rounded-2xl font-bold transition-all shadow-lg text-xs sm:text-sm active:scale-95 ${
                         isCompleted
                           ? 'bg-emerald-600 text-white cursor-default'
-                          : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950'
+                          : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold shadow-amber-900/30'
                       }`}
                     >
                       {isCompleted ? (
@@ -524,8 +524,8 @@ export default function RoqiaScreen() {
                         </>
                       ) : (
                         <>
-                          <span>اقرأ وكرّر</span>
-                          <span className="font-mono bg-black/20 px-2 py-0.5 rounded-lg text-xs">
+                          <span className="text-white font-bold">اقرأ وكرّر</span>
+                          <span className="font-mono bg-black/30 text-white px-2 py-0.5 rounded-lg text-xs font-bold">
                             {current} / {targetRepeat}
                           </span>
                         </>
