@@ -25,6 +25,8 @@
 
 @layer base {
   :root {
+    color-scheme: dark light;
+    forced-color-adjust: none;
     --color-emerald-deep: #031713;
     --color-gold-accent: #f59e0b;
     --color-gold-glow: rgba(245, 158, 11, 0.25);

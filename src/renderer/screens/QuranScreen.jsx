@@ -101,7 +101,14 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
   }));
 
   // Theme: 'parchment' (classic ivory Mushaf) | 'night' (royal dark emerald)
-  const [mushafTheme, setMushafTheme] = useState('parchment');
+  const [mushafTheme, setMushafTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('nisab_mushaf_theme');
+      return saved === 'night' ? 'night' : 'parchment';
+    } catch (e) {
+      return 'parchment';
+    }
+  });
 
   // Bookmark Page (saved to disk / localStorage)
   const [bookmarkPage, setBookmarkPage] = useState(() => {
@@ -802,35 +809,51 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
   const themeClasses = useMemo(() => {
     if (mushafTheme === 'night') {
       return {
+        colorScheme: 'dark',
         bookBorder: 'border-[#0a2f26] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9),0_0_35px_rgba(16,185,129,0.15)]',
-        pageBg: 'bg-gradient-to-b from-[#021a14] via-[#032019] to-[#01140e] text-[#fde68a]',
+        pageBg: 'bg-gradient-to-b from-[#021a14] via-[#032019] to-[#01140e]',
+        pageBgColor: '#021a14',
         ornamentBorder: 'border-amber-600/50',
         innerBorder: 'border-amber-500/30',
         headerText: 'text-amber-400',
+        headerTextColor: '#fbbf24',
         pageNumberText: 'text-amber-300',
+        pageNumberTextColor: '#fcd34d',
         surahBannerBg: 'bg-gradient-to-r from-amber-600/20 via-amber-500/30 to-amber-600/20 border-amber-500/50',
         surahBannerText: 'text-amber-300',
+        surahBannerTextColor: '#fcd34d',
         basmalahText: 'text-amber-200',
+        basmalahTextColor: '#fde68a',
         ayahText: 'text-[#fef3c7]',
+        ayahTextColor: '#fef3c7',
         ayahActiveBg: 'bg-amber-400/25 ring-1 ring-amber-400',
         ayahEndMark: 'text-amber-400 font-bold',
+        ayahEndMarkColor: '#fbbf24',
         spineGradient: 'from-black/50 via-black/20 to-black/50'
       };
     }
     // Default: Parchment / Ivory Classic King Fahd Mushaf
     return {
+      colorScheme: 'light',
       bookBorder: 'border-[#1b3d33] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8),0_0_35px_rgba(217,119,6,0.2)]',
-      pageBg: 'bg-gradient-to-b from-[#fefcf8] via-[#fbf7ee] to-[#f7f2e4] text-[#1c2e28]',
+      pageBg: 'bg-gradient-to-b from-[#fefcf8] via-[#fbf7ee] to-[#f7f2e4]',
+      pageBgColor: '#fefcf8',
       ornamentBorder: 'border-[#c59b27]/60',
       innerBorder: 'border-[#c59b27]/30',
       headerText: 'text-[#8a6514]',
+      headerTextColor: '#8a6514',
       pageNumberText: 'text-[#8a6514]',
+      pageNumberTextColor: '#8a6514',
       surahBannerBg: 'bg-gradient-to-r from-[#d4af37]/15 via-[#d4af37]/25 to-[#d4af37]/15 border-[#b8860b]/60',
       surahBannerText: 'text-[#7a570f]',
+      surahBannerTextColor: '#7a570f',
       basmalahText: 'text-[#7a570f]',
+      basmalahTextColor: '#7a570f',
       ayahText: 'text-[#1c2e28]',
+      ayahTextColor: '#1c2e28',
       ayahActiveBg: 'bg-amber-300/40 ring-1 ring-amber-500',
       ayahEndMark: 'text-[#a2781a] font-bold',
+      ayahEndMarkColor: '#a2781a',
       spineGradient: 'from-black/35 via-black/10 to-black/35'
     };
   }, [mushafTheme]);
@@ -871,6 +894,11 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
     return (
       <div
+        style={{
+          colorScheme: themeClasses.colorScheme,
+          backgroundColor: themeClasses.pageBgColor,
+          color: themeClasses.ayahTextColor
+        }}
         className={`relative flex-1 h-full flex flex-col justify-between overflow-hidden select-none ${themeClasses.pageBg} ${
           side === 'right' ? 'rounded-r-2xl border-l border-amber-900/10' : 'rounded-l-2xl border-r border-amber-900/10'
         }`}
@@ -903,7 +931,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
             {/* Page Header (Surah name & Juz / Hizb) */}
             <div
-              className={`flex items-center justify-between pb-1 mb-1.5 border-b ${themeClasses.innerBorder} select-none text-[11px] sm:text-xs font-quran-hafs font-bold ${themeClasses.headerText}`}
+              style={{ color: themeClasses.headerTextColor }}
+              className={`flex items-center justify-between pb-1 mb-1.5 border-b ${themeClasses.innerBorder} select-none text-[11px] sm:text-xs font-quran-hafs font-bold`}
             >
               {side === 'right' ? (
                 <>
@@ -934,8 +963,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       >
                         <span className="text-amber-500 font-quran-hafs text-xs">۞</span>
                         <h3
-                          style={{ fontSize: surahTitleFontSize }}
-                          className={`font-quran-hafs font-bold ${themeClasses.surahBannerText}`}
+                          style={{ fontSize: surahTitleFontSize, color: themeClasses.surahBannerTextColor }}
+                          className="font-quran-hafs font-bold"
                         >
                           {group.surahName}
                         </h3>
@@ -945,8 +974,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       {/* Basmalah (omitted for Surah 1 & Surah 9 At-Tawbah) */}
                       {group.surahNumber !== 1 && group.surahNumber !== 9 && (
                         <div
-                          style={{ fontSize: basmalahFontSize }}
-                          className={`text-center font-quran-hafs font-bold my-1 tracking-wider select-none ${themeClasses.basmalahText}`}
+                          style={{ fontSize: basmalahFontSize, color: themeClasses.basmalahTextColor }}
+                          className="text-center font-quran-hafs font-bold my-1 tracking-wider select-none"
                         >
                           بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
                         </div>
@@ -960,9 +989,10 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       fontSize: ayahFontSize,
                       lineHeight: ayahLineHeight,
                       textAlign: 'justify',
-                      textJustify: 'inter-word'
+                      textJustify: 'inter-word',
+                      color: themeClasses.ayahTextColor
                     }}
-                    className={`font-quran-hafs text-justify tracking-normal select-none ${themeClasses.ayahText}`}
+                    className="font-quran-hafs text-justify tracking-normal select-none"
                   >
                     {group.ayahs.map((ayah) => {
                       const isSelected = activeAya?.number === ayah.number;
@@ -987,9 +1017,10 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                           }`}
                           title={`انقر لاختيار الآية [${ayah.surahName}: ${ayah.numberInSurah}]`}
                         >
-                          <span>{cleanText}</span>
+                          <span style={{ color: themeClasses.ayahTextColor }}>{cleanText}</span>
                           <span
-                            className={`inline-block mx-1 font-quran-hafs select-none ${themeClasses.ayahEndMark}`}
+                            style={{ color: themeClasses.ayahEndMarkColor }}
+                            className="inline-block mx-1 font-quran-hafs font-bold select-none"
                           >
                             ﴿{toEasternArabic(ayah.numberInSurah)}﴾
                           </span>
@@ -1012,10 +1043,11 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       e.stopPropagation();
                       handleCopyPage(pageNum);
                     }}
+                    style={{ color: copiedPageNum === pageNum ? undefined : themeClasses.headerTextColor }}
                     className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border text-[10px] sm:text-[11px] font-sans font-medium transition-all shadow-sm ${
                       copiedPageNum === pageNum
                         ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold'
-                        : `${themeClasses.innerBorder} ${themeClasses.headerText} hover:bg-amber-500/15 hover:border-amber-500/50 hover:text-amber-600`
+                        : `${themeClasses.innerBorder} hover:bg-amber-500/15 hover:border-amber-500/50 hover:text-amber-600`
                     }`}
                     title="نسخ نص هذه الصفحة بالكامل إلى الحافظة"
                   >
@@ -1032,7 +1064,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                     )}
                   </button>
                   <div
-                    className={`flex items-center justify-center px-3 py-0.5 rounded-full border ${themeClasses.innerBorder} font-quran-hafs font-bold text-xs sm:text-sm ${themeClasses.pageNumberText} shadow-sm`}
+                    style={{ color: themeClasses.pageNumberTextColor }}
+                    className={`flex items-center justify-center px-3 py-0.5 rounded-full border ${themeClasses.innerBorder} font-quran-hafs font-bold text-xs sm:text-sm shadow-sm`}
                   >
                     <span>{toEasternArabic(pageNum)}</span>
                   </div>
@@ -1042,7 +1075,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                 <>
                   <div className="w-16 sm:w-20" />
                   <div
-                    className={`flex items-center justify-center px-3 py-0.5 rounded-full border ${themeClasses.innerBorder} font-quran-hafs font-bold text-xs sm:text-sm ${themeClasses.pageNumberText} shadow-sm`}
+                    style={{ color: themeClasses.pageNumberTextColor }}
+                    className={`flex items-center justify-center px-3 py-0.5 rounded-full border ${themeClasses.innerBorder} font-quran-hafs font-bold text-xs sm:text-sm shadow-sm`}
                   >
                     <span>{toEasternArabic(pageNum)}</span>
                   </div>
@@ -1051,10 +1085,11 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       e.stopPropagation();
                       handleCopyPage(pageNum);
                     }}
+                    style={{ color: copiedPageNum === pageNum ? undefined : themeClasses.headerTextColor }}
                     className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border text-[10px] sm:text-[11px] font-sans font-medium transition-all shadow-sm ${
                       copiedPageNum === pageNum
                         ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold'
-                        : `${themeClasses.innerBorder} ${themeClasses.headerText} hover:bg-amber-500/15 hover:border-amber-500/50 hover:text-amber-600`
+                        : `${themeClasses.innerBorder} hover:bg-amber-500/15 hover:border-amber-500/50 hover:text-amber-600`
                     }`}
                     title="نسخ نص هذه الصفحة بالكامل إلى الحافظة"
                   >
@@ -1244,7 +1279,13 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
           {/* Theme Mode Toggle (Parchment vs Night Emerald) */}
           <button
-            onClick={() => setMushafTheme(mushafTheme === 'parchment' ? 'night' : 'parchment')}
+            onClick={() => {
+              const nextTheme = mushafTheme === 'parchment' ? 'night' : 'parchment';
+              setMushafTheme(nextTheme);
+              try {
+                localStorage.setItem('nisab_mushaf_theme', nextTheme);
+              } catch (e) {}
+            }}
             className="p-2 rounded-xl bg-slate-900 border border-emerald-900/60 hover:border-amber-400 text-slate-300 hover:text-amber-300 transition shadow"
             title={mushafTheme === 'parchment' ? 'تفعيل الوضع الليلي للمصحف' : 'تفعيل لون الورق العاجي للمصحف'}
           >
