@@ -897,16 +897,6 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
           side === 'right' ? 'rounded-r-2xl border-l border-amber-900/10' : 'rounded-l-2xl border-r border-amber-900/10'
         }`}
       >
-        {/* Realistic Silk Ribbon Bookmark */}
-        {isBookmarkOnThisPage && (
-          <div
-            className="absolute top-0 right-8 z-30 w-5 h-14 bg-gradient-to-b from-rose-600 via-rose-700 to-rose-800 shadow-lg flex items-end justify-center pb-1 text-white font-bold"
-            title="علامة القراءة المحفوظة"
-          >
-            <Bookmark className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-          </div>
-        )}
-
         {/* Outer Ornamental Golden Border */}
         <div
           className={`relative m-1.5 sm:m-2.5 flex-1 flex flex-col justify-between border-2 ${
@@ -1237,14 +1227,26 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
           {/* Bookmark Button */}
           <button
             onClick={handleToggleBookmark}
+            style={
+              bookmarkPage === currentPage
+                ? {
+                    backgroundColor: 'rgba(153, 27, 27, 0.4)',
+                    borderColor: '#ef4444',
+                    color: '#fca5a5'
+                  }
+                : undefined
+            }
             className={`flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl border text-xs sm:text-sm font-semibold transition ${
               bookmarkPage === currentPage
-                ? 'bg-rose-950/80 border-rose-500 text-rose-300 shadow'
+                ? 'shadow shadow-red-950/40'
                 : 'bg-slate-900 border-emerald-900/60 text-slate-300 hover:text-amber-300'
             }`}
             title={bookmarkPage === currentPage ? 'إزالة الفاصل المرجعي' : 'حفظ فاصل القراءة في هذه الصفحة'}
           >
-            <Bookmark className={`w-3.5 h-3.5 ${bookmarkPage === currentPage ? 'fill-rose-400 text-rose-400' : ''}`} />
+            <Bookmark
+              style={bookmarkPage === currentPage ? { fill: '#ef4444', color: '#ef4444' } : undefined}
+              className="w-3.5 h-3.5"
+            />
             <span>{bookmarkPage === currentPage ? 'محفوظة' : 'فاصل'}</span>
           </button>
 
@@ -1348,6 +1350,42 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
               <div
                 className={`w-3 sm:w-5 h-full shrink-0 bg-gradient-to-r ${themeClasses.spineGradient} shadow-inner pointer-events-none z-20`}
               />
+
+              {/* Central Spine Silk Ribbon Bookmark (فاصل المصحف الشريف الحريري الأحمر المتدلي بين فاصل الصفحتين من أعلى) */}
+              {bookmarkPage && (bookmarkPage === rightPageNum || bookmarkPage === leftPageNum) && (
+                <div
+                  style={{
+                    background: 'linear-gradient(180deg, #7f1d1d 0%, #991b1b 15%, #dc2626 50%, #b91c1c 80%, #7f1d1d 100%)',
+                    clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 50% calc(100% - 12px), 0% 100%)',
+                    filter: 'drop-shadow(0 6px 14px rgba(0, 0, 0, 0.65)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4))'
+                  }}
+                  className="absolute top-0 left-1/2 -translate-x-1/2 z-30 w-7 sm:w-8 h-24 sm:h-28 flex flex-col items-center justify-between pt-1 pb-3 text-white font-bold select-none cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                  title={`علامة القراءة المحفوظة (صفحة ${toEasternArabic(bookmarkPage)}) - انقر للإزالة`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleBookmark();
+                  }}
+                >
+                  {/* Top spine crease & gold stitch */}
+                  <div className="w-full flex flex-col items-center">
+                    <div className="w-full h-1 bg-black/40" />
+                    <div className="w-4/5 h-[1px] bg-amber-300/70 mt-0.5" />
+                  </div>
+
+                  {/* Middle Golden Medallion */}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <div className="w-4.5 h-4.5 rounded-full bg-black/25 border border-amber-300/75 flex items-center justify-center shadow-inner">
+                      <Bookmark className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
+                    </div>
+                    <span className="text-[8px] sm:text-[9px] font-serif font-bold text-amber-200 select-none">
+                      ص {toEasternArabic(bookmarkPage)}
+                    </span>
+                  </div>
+
+                  {/* Bottom Golden Stitch before the chevron notch */}
+                  <div className="w-3/5 h-[1px] bg-amber-300/70 rounded-full mb-0.5" />
+                </div>
+              )}
 
               {/* Left Page (Even numbers: 2, 4, 6...) with 3D Page Turn */}
               <div className="flex-1 h-full relative overflow-hidden" style={{ perspective: '1800px' }}>

@@ -12,7 +12,11 @@ import {
   Radio,
   Clock,
   Sparkles,
-  Power
+  Power,
+  RotateCcw,
+  AlertTriangle,
+  CheckCircle2,
+  X
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import SwitchToggle from '../components/SwitchToggle';
@@ -42,6 +46,7 @@ export default function SettingsScreen() {
   const [countries, setCountries] = useState([]);
   const [reciters, setReciters] = useState({});
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [resetModalState, setResetModalState] = useState(null); // null | 'confirm' | 'success'
 
   // Settings State initialized from localStorage if available
   const [selectedCountry, setSelectedCountry] = useState(() => {
@@ -281,6 +286,81 @@ export default function SettingsScreen() {
         message: 'تم تحديث بيانات الموقع ومواقيت الصلاة والتنبيهات وإعدادات بدء التشغيل بنجاح.',
         duration: 4500
       });
+    }
+  };
+
+  const handleExecuteReset = async () => {
+    try {
+      // 1. Clear all local storage caches and keys completely
+      localStorage.clear();
+
+      // 2. Reset and delete Khatmah tracker data from disk and broadcast update
+      const EMPTY_KHATMAH = {
+        hasActiveKhatmah: false,
+        plan: null,
+        currentPage: 1,
+        currentSurahId: 1,
+        currentAyahNumber: 1,
+        completedDaysCount: 0,
+        streak: 0,
+        lastCompletedDate: null,
+        history: []
+      };
+
+      if (window.nisabAPI?.saveKhatmahData) {
+        try {
+          await window.nisabAPI.saveKhatmahData(EMPTY_KHATMAH);
+        } catch (e) {
+          console.warn('Failed to clear Khatmah data on disk:', e);
+        }
+      }
+
+      localStorage.setItem('nisab_khatmah_data', JSON.stringify(EMPTY_KHATMAH));
+      window.dispatchEvent(new CustomEvent('nisab-khatmah-updated', { detail: EMPTY_KHATMAH }));
+
+      // 3. Reset component states to default values
+      setSelectedCountry('Egypt');
+      setSelectedCity('Cairo');
+      setSelectedReciter('1');
+      setCalcMethod('Egyptian');
+      setEnableNotification(true);
+      setEnableAdhanSound(true);
+      setEnableReminder(true);
+      setReminderMinutes(15);
+      setEnableKhatmahReminder(true);
+      setEnableStartup(false);
+
+      // 4. Reset startup setting via Electron if available
+      if (window.nisabAPI?.setAutoStart) {
+        try {
+          await window.nisabAPI.setAutoStart(false);
+        } catch (e) {}
+      }
+
+      // 5. Seed clean default config in localStorage
+      const defaultConfig = {
+        country: 'Egypt',
+        countryArabic: 'مصر',
+        city: 'Cairo',
+        latitude: 30.0444,
+        longitude: 31.2357,
+        reciterId: '1',
+        calcMethod: 'Egyptian',
+        enableNotification: true,
+        enableAdhanSound: true,
+        enableReminder: true,
+        reminderMinutes: 15,
+        enableKhatmahReminder: true,
+        enableStartup: false,
+        adhanSound: 'azan.mp3'
+      };
+      localStorage.setItem('nisab_user_settings', JSON.stringify(defaultConfig));
+      window.dispatchEvent(new Event('nisab-settings-changed'));
+
+      // 6. Show custom success alert state
+      setResetModalState('success');
+    } catch (err) {
+      console.error('Failed to reset defaults:', err);
     }
   };
 
@@ -725,7 +805,149 @@ export default function SettingsScreen() {
             </div>
           </div>
         </div>
+
+        {/* Section 5: Reset to Defaults & Clear Storage */}
+        <div className="bg-slate-900/80 border border-red-900/40 rounded-3xl p-4 sm:p-6 md:p-8 shadow-xl backdrop-blur-md space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-red-900/30 pb-3">
+            <div className="flex items-center gap-2 text-rose-400 font-bold">
+              <RotateCcw className="w-5 h-5" />
+              <h2 className="text-base sm:text-lg">استعادة الإعدادات الافتراضية</h2>
+            </div>
+            <span className="text-xs text-rose-300 bg-rose-950/80 px-3 py-1 rounded-full border border-rose-800/60 font-medium self-start sm:self-auto">
+              إعادة ضبط المصنع
+            </span>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-2xl bg-slate-950 border border-red-950/60 hover:border-red-900/60 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="text-sm sm:text-base font-bold text-slate-100">
+                إعادة ضبط كافة الإعدادات ومسح الذاكرة المؤقتة
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                استعادة جميع إعدادات التطبيق إلى حالتها الافتراضية ومسح البيانات المحفوظة محلياً (Local Storage).
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setResetModalState('confirm')}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-rose-600/20 hover:bg-rose-600 border border-rose-500/50 hover:border-rose-500 text-rose-300 hover:text-white font-bold text-xs sm:text-sm transition shadow-lg active:scale-95 shrink-0"
+              title="استعادة الإعدادات الافتراضية ومسح البيانات"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>استعادة الافتراضي</span>
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Custom Reset Alert Modal with Amazing UI/UX */}
+      <AnimatePresence>
+        {resetModalState && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+            {/* Backdrop click dismiss */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => resetModalState === 'confirm' && setResetModalState(null)}
+              className="absolute inset-0"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className={`relative z-10 w-full max-w-md p-6 sm:p-8 rounded-3xl border shadow-2xl backdrop-blur-xl text-center overflow-hidden ${
+                resetModalState === 'confirm'
+                  ? 'bg-slate-900/95 border-rose-500/40 shadow-rose-950/50'
+                  : 'bg-slate-900/95 border-emerald-500/40 shadow-emerald-950/50'
+              }`}
+            >
+              <ArabesquePattern className="opacity-5 text-amber-400" />
+
+              {/* Close X Button */}
+              <button
+                type="button"
+                onClick={() => setResetModalState(null)}
+                className="absolute top-4 left-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                title="إغلاق"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {resetModalState === 'confirm' ? (
+                <div className="space-y-5">
+                  {/* Glowing Icon Badge */}
+                  <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-2xl bg-rose-500/20 animate-ping opacity-30" />
+                    <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-500/20 to-rose-600/10 border border-rose-500/40 flex items-center justify-center text-rose-400 shadow-inner">
+                      <AlertTriangle className="w-8 h-8 text-rose-400" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-white font-serif">
+                      استعادة الإعدادات الافتراضية
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xs mx-auto">
+                      هل أنت متأكد من استعادة كافة الإعدادات إلى وضعها الافتراضي ومسح الذاكرة المؤقتة بالكامل؟
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setResetModalState(null)}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs sm:text-sm transition border border-slate-700/60"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExecuteReset}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs sm:text-sm transition shadow-lg shadow-rose-900/40 border border-rose-400/30 flex items-center justify-center gap-2 active:scale-95"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>نعم، استعادة</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {/* Success Icon Badge */}
+                  <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
+                    <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-inner">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-white font-serif">
+                      تمت الاستعادة بنجاح
+                    </h3>
+                    <p className="text-xs sm:text-sm text-emerald-200/90 leading-relaxed max-w-xs mx-auto">
+                      تمت استعادة كافة إعدادات التطبيق إلى حالتها الافتراضية ومسح الذاكرة المؤقتة بنجاح.
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setResetModalState(null)}
+                      className="w-full py-2.5 px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold text-xs sm:text-sm transition shadow-lg shadow-emerald-900/40 border border-emerald-400/30 active:scale-95"
+                    >
+                      حسناً
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
