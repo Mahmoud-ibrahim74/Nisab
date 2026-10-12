@@ -1400,21 +1400,21 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 15 }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-xl flex items-center gap-3 text-xs sm:text-sm select-none"
+            className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 w-auto min-w-[580px] sm:min-w-[670px] max-w-[94vw] px-5 sm:px-6 py-3 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3 sm:gap-4 text-xs sm:text-sm select-none"
           >
-            <div className="font-serif text-amber-300 font-bold border-l border-emerald-800/80 pl-3">
+            <div className="font-serif text-amber-300 font-bold border-l border-emerald-800/80 pl-3.5 sm:pl-4 text-sm sm:text-base shrink-0">
               {activeAya.surahName} : {activeAya.numberInSurah}
             </div>
 
             {/* الاستماع للآية Button */}
             <button
               onClick={() => playAyaAudio(activeAya)}
-              className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 min-w-[115px] rounded-xl font-bold transition shadow ${
+              className={`flex items-center justify-center gap-2 px-4 py-2 min-w-[130px] rounded-xl font-bold transition shadow-lg text-white ${
                 isAudioLoading && playingAyaGlobalNum === activeAya.number
-                  ? 'bg-amber-500/90 text-slate-950'
+                  ? 'bg-amber-600'
                   : playingAyaGlobalNum === activeAya.number && isPlaying
-                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950'
-                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                  ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-900/30'
+                  : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-900/30'
               }`}
               title={
                 isAudioLoading && playingAyaGlobalNum === activeAya.number
@@ -1425,15 +1425,15 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
               }
             >
               {isAudioLoading && playingAyaGlobalNum === activeAya.number ? (
-                <MiniLoader size="sm" color="current" />
+                <MiniLoader size="sm" color="white" />
               ) : playingAyaGlobalNum === activeAya.number && isPlaying ? (
                 <>
-                  <Pause className="w-3.5 h-3.5" />
+                  <Pause className="w-4 h-4 text-white" />
                   <span>إيقاف</span>
                 </>
               ) : (
                 <>
-                  <Volume2 className="w-3.5 h-3.5" />
+                  <Volume2 className="w-4 h-4 text-white" />
                   <span>الاستماع للآية</span>
                 </>
               )}
@@ -1441,15 +1441,17 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
             {/* Tafseer Button */}
             <button
+              type="button"
               onClick={() => handleOpenTafseer(activeAya)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 transition"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-950 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 font-semibold transition"
             >
-              <Info className="w-3.5 h-3.5" />
+              <Info className="w-4 h-4" />
               <span>التفسير</span>
             </button>
 
             {/* Save as Khatmah Bookmark Button */}
             <button
+              type="button"
               onClick={async () => {
                 if (activeAya) {
                   await updateKhatmahBookmark({
@@ -1461,26 +1463,29 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                   setTimeout(() => setSavedKhatmahToast(false), 2000);
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-semibold transition"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-semibold transition"
               title="حفظ موضع هذه الآية كعلامة توقف في خطة الختمة"
             >
-              <BookmarkCheck className="w-3.5 h-3.5 text-amber-400" />
+              <BookmarkCheck className="w-4 h-4 text-amber-400" />
               <span>{savedKhatmahToast ? 'تم الحفظ في الختمة' : 'علامة الختمة'}</span>
             </button>
 
             {/* Copy Button */}
             <button
+              type="button"
               onClick={() => handleCopyAya(activeAya)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition font-medium"
             >
-              {copiedAya ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedAya ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               <span>{copiedAya ? 'تم النسخ' : 'نسخ'}</span>
             </button>
 
             {/* Dismiss */}
             <button
+              type="button"
               onClick={() => setActiveAya(null)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0"
+              title="إغلاق"
             >
               <X className="w-4 h-4" />
             </button>
