@@ -210,11 +210,21 @@ export default function SettingsScreen() {
       setPreviewingAudio(null);
     } else {
       try {
-        const soundUri = await window.nisabAPI.getOfflineAudio(soundName);
-        audioElement.src = soundUri;
-        audioElement.play();
-        setPreviewingAudio(soundName);
-        audioElement.onended = () => setPreviewingAudio(null);
+        let soundUri = null;
+        if (window.nisabAPI?.getOfflineAudio) {
+          try {
+            soundUri = await window.nisabAPI.getOfflineAudio(soundName);
+          } catch (e) {}
+        }
+        if (!soundUri && soundName === 'rattil.mp3') {
+          soundUri = 'https://everyayah.com/data/Alafasy_128kbps/073004.mp3';
+        }
+        if (soundUri) {
+          audioElement.src = soundUri;
+          audioElement.play();
+          setPreviewingAudio(soundName);
+          audioElement.onended = () => setPreviewingAudio(null);
+        }
       } catch (err) {
         console.error('Failed to preview audio:', err);
       }
@@ -297,9 +307,9 @@ export default function SettingsScreen() {
 
           <button
             onClick={handleSaveSettings}
-            className="flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm transition shadow-lg self-start sm:self-auto"
+            className="flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs sm:text-sm transition shadow-lg shadow-amber-900/30 self-start sm:self-auto active:scale-95"
           >
-            {savedSuccess ? <Check className="w-4 h-4 text-slate-950" /> : <Save className="w-4 h-4" />}
+            {savedSuccess ? <Check className="w-4 h-4 text-white" /> : <Save className="w-4 h-4" />}
             <span>{savedSuccess ? 'تم الحفظ بنجاح' : 'حفظ التغييرات'}</span>
           </button>
         </div>
@@ -498,7 +508,7 @@ export default function SettingsScreen() {
                     onClick={() => handleTestAudio('azan.mp3')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${
                       previewingAudio === 'azan.mp3'
-                        ? 'bg-amber-500 text-slate-950 border-amber-400'
+                        ? 'bg-amber-600 text-white font-bold border-amber-400'
                         : 'bg-emerald-900/60 hover:bg-emerald-800/80 text-amber-300 border-emerald-800/80'
                     }`}
                   >
@@ -545,7 +555,7 @@ export default function SettingsScreen() {
                     onClick={() => handleTestAudio('reminder.mp3')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${
                       previewingAudio === 'reminder.mp3'
-                        ? 'bg-amber-500 text-slate-950 border-amber-400'
+                        ? 'bg-amber-600 text-white font-bold border-amber-400'
                         : 'bg-emerald-900/60 hover:bg-emerald-800/80 text-amber-300 border-emerald-800/80'
                     }`}
                   >
@@ -628,18 +638,35 @@ export default function SettingsScreen() {
                 <div className="flex items-center gap-3 self-start sm:self-center shrink-0">
                   <button
                     type="button"
-                    onClick={() => notificationManager.notifyKhatmahReminder({ hasActiveKhatmah: true, currentPage: 1, surahName: 'الفاتحة', todayPages: 20 })}
+                    onClick={() => {
+                      notificationManager.notifyKhatmahReminder({ hasActiveKhatmah: true, currentPage: 1, surahName: 'الفاتحة', todayPages: 20 });
+                      handleTestAudio('rattil.mp3');
+                    }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-xs text-amber-300 border border-amber-500/40 font-semibold transition shadow-sm"
-                    title="تجربة تنبيه الختمة الآن"
+                    title="تجربة تنبيه الختمة وسماع الآية الآن"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>تجربة تنبيه الختمة</span>
+                    {previewingAudio === 'rattil.mp3' ? (
+                      <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+                    )}
+                    <span>{previewingAudio === 'rattil.mp3' ? 'إيقاف الصوت' : 'تجربة تنبيه الختمة'}</span>
                   </button>
 
                   <SwitchToggle
                     id="toggle-khatmah-reminder"
                     checked={enableKhatmahReminder}
-                    onChange={setEnableKhatmahReminder}
+                    onChange={(checked) => {
+                      setEnableKhatmahReminder(checked);
+                      if (checked) {
+                        handleTestAudio('rattil.mp3');
+                      } else {
+                        if (previewingAudio === 'rattil.mp3') {
+                          audioElement.pause();
+                          setPreviewingAudio(null);
+                        }
+                      }
+                    }}
                     ariaLabel="تفعيل تنبيه الورد اليومي للختمة"
                   />
                 </div>
