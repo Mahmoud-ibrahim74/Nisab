@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Coins,
   Award,
+  Library,
   ExternalLink,
   X
 } from 'lucide-react';
@@ -758,7 +759,21 @@ export default function DashboardScreen({ onNavigate }) {
         </motion.div>
 
         {/* Quick Navigation Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 sm:gap-5">
+          <button
+            onClick={() => onNavigate && onNavigate('books')}
+            className="group p-4 sm:p-5 rounded-3xl bg-slate-900/80 border border-emerald-900/60 hover:border-amber-400/60 transition-all text-right flex items-center justify-between shadow-xl"
+          >
+            <div>
+              <div className="p-2.5 sm:p-3 w-fit rounded-2xl bg-gradient-to-br from-amber-500/20 to-emerald-950 text-amber-400 border border-amber-500/40 mb-3 group-hover:scale-110 transition-transform">
+                <Library className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-amber-200">المكتبة الإسلامية</h3>
+              <p className="text-xs text-slate-400 mt-1">مطالعة 19 كتاباً ورسالة دعوية نافعة</p>
+            </div>
+            <ChevronLeft className="w-5 h-5 text-slate-500 group-hover:text-amber-400 group-hover:-translate-x-1 transition-all" />
+          </button>
+
           <button
             onClick={() => onNavigate && onNavigate('quizzes')}
             className="group p-4 sm:p-5 rounded-3xl bg-slate-900/80 border border-emerald-900/60 hover:border-amber-400/60 transition-all text-right flex items-center justify-between shadow-xl"
