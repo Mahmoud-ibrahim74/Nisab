@@ -2,10 +2,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
+  ArrowDown,
   Copy,
   Check,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
+  Gauge,
   Sparkles,
   Scroll,
   Printer,
@@ -13,11 +16,27 @@ import {
   Highlighter,
   Eraser,
   Trash2,
-  Save
+  Save,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import ArabesquePattern from './ArabesquePattern';
 import PrintPreview from '../screens/PrintPreview';
 import WarningAlert from './WarningAlert';
+import SwitchToggle from './SwitchToggle';
+import IntroPillToast from './IntroPillToast';
+
+// Pre-configured Auto Scroll Speeds
+const SCROLL_SPEEDS = [
+  { value: 0.1, label: '0.1x', pixelsPerSecond: 10 },
+  { value: 0.25, label: '0.25x', pixelsPerSecond: 20 },
+  { value: 0.5, label: '0.5x', pixelsPerSecond: 30 },
+  { value: 0.75, label: '0.75x', pixelsPerSecond: 50 },
+  { value: 1, label: '1x', pixelsPerSecond: 80 },
+  { value: 1.5, label: '1.5x', pixelsPerSecond: 130 },
+  { value: 2, label: '2x', pixelsPerSecond: 200 },
+  { value: 3, label: '3x', pixelsPerSecond: 320 },
+];
 
 // Pen Cursor Data URIs
 const PEN_CURSORS = {
@@ -222,6 +241,8 @@ export default function TextView({
   enableFavorite = true,
   enableFontResize = true,
   enableNavigation = true,
+  enableAutoScroll = true,
+  enableFullscreen = true,
   className = '',
 
   // Backward-compatibility props for HadithInfoScreen:
@@ -298,13 +319,17 @@ export default function TextView({
 
   const handlePrev = () => {
     if (hasPrev) {
+      setIsAutoScroll(false);
       setActiveItem(navigationList[currentIndex - 1]);
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     }
   };
 
   const handleNext = () => {
     if (hasNext) {
+      setIsAutoScroll(false);
       setActiveItem(navigationList[currentIndex + 1]);
+      if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
     }
   };
 
@@ -320,6 +345,17 @@ export default function TextView({
   const [saveStatusMsg, setSaveStatusMsg] = useState('');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [clearAlertState, setClearAlertState] = useState(null);
+
+  // Auto Scroll States & Container Ref
+  const scrollContainerRef = useRef(null);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const [isAutoScroll, setIsAutoScroll] = useState(false);
+  const [selectedSpeed, setSelectedSpeed] = useState(1);
+  const [isSpeedDropdownOpen, setIsSpeedDropdownOpen] = useState(false);
+  const speedDropdownRef = useRef(null);
+  const [showNoScrollToast, setShowNoScrollToast] = useState(false);
+  const noScrollTimerRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const textContainerRef = useRef(null);
 
@@ -533,6 +569,173 @@ export default function TextView({
     return PEN_CURSORS[penColor] || PEN_CURSORS.amber;
   }, [isPenActive, penMode, penColor]);
 
+  // Dedicated toggle handler: activates immediately and checks scrollability
+  const handleToggleAutoScroll = useCallback(() => {
+    if (isAutoScroll) {
+      setIsAutoScroll(false);
+      return;
+    }
+
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Check whether content extends beyond the visible container or viewport
+    const maxScroll = Math.max(
+      container.scrollHeight - container.clientHeight,
+      (document.documentElement?.scrollHeight || 0) - window.innerHeight
+    );
+
+    if (maxScroll <= 5) {
+      // Content fits completely on screen without scroll
+      setShowNoScrollToast(true);
+      if (noScrollTimerRef.current) clearTimeout(noScrollTimerRef.current);
+      noScrollTimerRef.current = setTimeout(() => setShowNoScrollToast(false), 3200);
+      setIsAutoScroll(false);
+      return;
+    }
+
+    // If starting while already at or near the very bottom, rewind to top
+    if (container.scrollTop >= maxScroll - 10) {
+      container.scrollTop = 0;
+    }
+
+    setIsAutoScroll(true);
+  }, [isAutoScroll]);
+
+  // Fullscreen Mode Toggle Handler
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (scrollContainerRef.current?.requestFullscreen) {
+          await scrollContainerRef.current.requestFullscreen();
+        } else if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+        setIsFullscreen(true);
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      // Graceful fallback to CSS full-window focus mode
+      setIsFullscreen((prev) => !prev);
+    }
+  }, []);
+
+  // Sync fullscreen state with native browser/electron events and Escape key
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  // Close speed dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (speedDropdownRef.current && !speedDropdownRef.current.contains(e.target)) {
+        setIsSpeedDropdownOpen(false);
+      }
+    };
+    if (isSpeedDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSpeedDropdownOpen]);
+
+  // When active text or item changes, reset auto-scroll and reset to top
+  useEffect(() => {
+    setIsAutoScroll(false);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [activeText, activeItem]);
+
+  // Auto-scroll smooth animation engine
+  useEffect(() => {
+    if (!isAutoScroll) return;
+
+    const container = scrollContainerRef.current;
+    if (!container) {
+      setIsAutoScroll(false);
+      return;
+    }
+
+    let animationFrameId;
+    let lastTime = performance.now();
+    let accumulated = 0;
+
+    const currentSpeedObj = SCROLL_SPEEDS.find((s) => s.value === selectedSpeed);
+    const speedPxPerSec = currentSpeedObj ? currentSpeedObj.pixelsPerSecond : 80;
+
+    const step = (currentTime) => {
+      const delta = Math.min((currentTime - lastTime) / 1000, 0.1);
+      lastTime = currentTime;
+
+      const maxScroll = container.scrollHeight - container.clientHeight;
+      if (maxScroll > 5) {
+        accumulated += speedPxPerSec * delta;
+
+        if (accumulated >= 1) {
+          const stepPixels = Math.floor(accumulated);
+          accumulated -= stepPixels;
+
+          const prevScroll = container.scrollTop;
+          container.scrollTop = prevScroll + stepPixels;
+
+          // Fallback to window scroll if container isn't absorbing the scroll
+          if (container.scrollTop === prevScroll && window.scrollY + window.innerHeight < document.documentElement.scrollHeight) {
+            window.scrollBy(0, stepPixels);
+          }
+
+          // Stop if reached the very end
+          if (container.scrollTop >= maxScroll - 2) {
+            setIsAutoScroll(false);
+            return;
+          }
+        }
+      } else {
+        setIsAutoScroll(false);
+        return;
+      }
+
+      animationFrameId = requestAnimationFrame(step);
+    };
+
+    animationFrameId = requestAnimationFrame(step);
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [isAutoScroll, selectedSpeed]);
+
+  // Scroll listener on container to track canScrollDown indicator
+  const handleContainerScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    const { scrollHeight, clientHeight, scrollTop } = scrollContainerRef.current;
+    const hasScroll = scrollHeight > clientHeight + 5;
+    setCanScrollDown(hasScroll && scrollTop < scrollHeight - clientHeight - 10);
+  }, []);
+
   // Empty State
   if (!activeText && !activeItem) {
     return (
@@ -556,11 +759,26 @@ export default function TextView({
 
   return (
     <div
+      ref={scrollContainerRef}
+      onScroll={handleContainerScroll}
+      onWheel={() => {
+        if (isAutoScroll) setIsAutoScroll(false);
+      }}
       style={{ height: '100%', width: '100%', minWidth: 0, overflowY: 'auto' }}
-      className={`relative h-full w-full min-w-0 bg-slate-950 text-slate-100 p-3 sm:p-5 lg:p-8 overflow-y-auto scrollbar-thin scrollbar-thumb-emerald-800 ${className}`}
+      className={`relative h-full w-full min-w-0 bg-slate-950 text-slate-100 p-3 sm:p-5 lg:p-8 overflow-y-auto scrollbar-thin scrollbar-thumb-emerald-800 ${className} ${
+        isFullscreen ? 'fixed inset-0 z-50 p-4 sm:p-8 lg:p-12' : ''
+      }`}
       dir="rtl"
     >
       <ArabesquePattern className="opacity-10 text-emerald-500 no-print" />
+
+      {/* IntroPillToast notification when no scrolling is available */}
+      <IntroPillToast
+        show={showNoScrollToast}
+        text="التمرير التلقائي غير متاح"
+        subtitle="المحتوى معروض بالكامل في الشاشة"
+        icon={ArrowDown}
+      />
 
       <div className="relative z-10 w-full min-w-0 max-w-[1700px] mx-auto space-y-4 sm:space-y-6 pb-16">
         {/* Navigation Bar & Back Button */}
@@ -632,6 +850,111 @@ export default function TextView({
               </div>
             )}
 
+            {/* Auto Scroll Toggle & Speed Dropdown Menu */}
+            {enableAutoScroll && (
+              <div className="flex items-center gap-1.5">
+                {/* Auto Scroll Toggle Button */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  id="auto-scroll-toggle-btn"
+                  onClick={handleToggleAutoScroll}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleToggleAutoScroll();
+                    }
+                  }}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl border transition shadow select-none cursor-pointer ${
+                    isAutoScroll
+                      ? 'bg-sky-950/80 border-sky-400 text-sky-200 ring-2 ring-sky-400/30 font-bold'
+                      : 'bg-slate-900 border-emerald-800/80 hover:border-amber-400/80 text-slate-200 hover:text-amber-300'
+                  }`}
+                  title={isAutoScroll ? 'إيقاف التمرير التلقائي' : 'تشغيل التمرير التلقائي للنص'}
+                >
+                  <motion.span
+                    animate={isAutoScroll ? { y: [0, 2, 0] } : {}}
+                    transition={{ repeat: Infinity, duration: 1 }}
+                    className="inline-flex"
+                  >
+                    <ArrowDown
+                      className={`w-3.5 h-3.5 ${
+                        isAutoScroll ? 'text-sky-400' : 'text-amber-400'
+                      }`}
+                    />
+                  </motion.span>
+                  <span className="hidden sm:inline text-xs font-semibold">تمرير تلقائي</span>
+
+                  <div className="pointer-events-none">
+                    <SwitchToggle
+                      id="text-view-auto-scroll-toggle"
+                      checked={isAutoScroll}
+                      disabled={false}
+                      ariaLabel="تمرير تلقائي"
+                    />
+                  </div>
+                </div>
+
+                {/* Speed Dropdown Menu */}
+                <div className="relative" ref={speedDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsSpeedDropdownOpen((prev) => !prev);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-2xl border text-xs font-semibold transition shadow ${
+                      isSpeedDropdownOpen
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-300 ring-2 ring-amber-400/30'
+                        : 'bg-slate-900 border-emerald-800/80 hover:border-amber-400/80 text-slate-200 hover:text-amber-300'
+                    }`}
+                    title="اختيار سرعة حركة التمرير"
+                  >
+                    <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="font-mono text-amber-300 font-bold text-xs">{selectedSpeed}x</span>
+                    <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isSpeedDropdownOpen ? 'rotate-180 text-amber-300' : ''}`} />
+                  </button>
+
+                  <AnimatePresence>
+                    {isSpeedDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-0 mt-2 w-48 rounded-2xl bg-slate-950/95 border border-emerald-700/80 shadow-2xl backdrop-blur-xl p-1.5 z-50 space-y-1"
+                        dir="rtl"
+                      >
+                        <div className="px-2.5 py-1 text-[10px] text-slate-400 font-bold border-b border-emerald-900/40 mb-1 flex items-center justify-between">
+                          <span>سرعة حركة التمرير</span>
+                          <span className="text-amber-400 font-mono">Speed</span>
+                        </div>
+                        {SCROLL_SPEEDS.map((sp) => (
+                          <button
+                            key={sp.value}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSpeed(sp.value);
+                              setIsSpeedDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition ${
+                              selectedSpeed === sp.value
+                                ? 'bg-amber-500 text-slate-950 font-bold shadow'
+                                : 'text-slate-200 hover:bg-emerald-950/80 hover:text-amber-300'
+                            }`}
+                          >
+                            <span>{sp.label}</span>
+                            {selectedSpeed === sp.value && <Check className="w-3.5 h-3.5 text-slate-950 font-bold" />}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            )}
+
             {/* Favorite Button */}
             {enableFavorite && (
               <button
@@ -673,6 +996,29 @@ export default function TextView({
                   <Copy className="w-4 h-4 text-amber-400" />
                 )}
                 <span>{copied ? 'تم النسخ' : 'نسخ النص'}</span>
+              </button>
+            )}
+
+            {/* Fullscreen Mode Button */}
+            {enableFullscreen && (
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl border text-xs sm:text-sm font-semibold transition shadow active:scale-95 ${
+                  isFullscreen
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold ring-2 ring-amber-400/40 shadow-amber-500/20'
+                    : 'bg-slate-900 border-emerald-800/80 hover:border-amber-400/80 text-slate-200 hover:text-amber-300'
+                }`}
+                title={isFullscreen ? 'الخروج من ملء الشاشة (Esc)' : 'ملء الشاشة للقراءة بتركيز'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className={`w-4 h-4 ${isFullscreen ? 'text-slate-950' : 'text-amber-400'}`} />
+                ) : (
+                  <Maximize2 className="w-4 h-4 text-amber-400" />
+                )}
+                <span>
+                  {isFullscreen ? 'تصغير' : 'ملء الشاشة'}
+                </span>
               </button>
             )}
           </div>
@@ -969,6 +1315,32 @@ export default function TextView({
         successMessage="تم مسح كافة التظليلات لهذا النص بنجاح."
         successButtonText="حسناً"
       />
+
+      {/* Floating Auto-Scroll Status Indicator */}
+      <AnimatePresence>
+        {isAutoScroll && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 rounded-2xl bg-slate-950/95 border border-sky-400/80 shadow-2xl backdrop-blur-md flex items-center gap-3 text-xs text-slate-100 no-print"
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500"></span>
+            </span>
+            <span className="font-semibold text-sky-200">
+              التمرير التلقائي قيد التشغيل ({selectedSpeed}x)
+            </span>
+            <button
+              onClick={() => setIsAutoScroll(false)}
+              className="px-2.5 py-1 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-800/60 text-rose-300 hover:text-white transition font-bold text-[11px]"
+            >
+              إيقاف
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

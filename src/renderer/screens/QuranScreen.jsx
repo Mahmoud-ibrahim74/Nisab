@@ -25,6 +25,7 @@ import {
 import ArabesquePattern from '../components/ArabesquePattern';
 import MiniLoader from '../components/MiniLoader';
 import BookView, { playRealPageFlipSound } from '../components/BookView';
+import IntroPillToast from '../components/IntroPillToast';
 import { normalizeArabic, findArabicMatches } from '../../utils/arabicNormalizer';
 
 // Convert number to Eastern Arabic numerals (١، ٢، ٣...)
@@ -1009,24 +1010,7 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
       <ArabesquePattern className="opacity-10 text-emerald-500 pointer-events-none" />
 
       {/* Visual notification badge when playing the intro Ayah */}
-      <AnimatePresence>
-        {showIntroPill && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 border border-amber-500/60 text-amber-300 shadow-2xl flex items-center gap-3 backdrop-blur-xl pointer-events-none"
-          >
-            <Volume2 className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
-            <span className="font-serif font-bold text-sm sm:text-base text-amber-200">
-              ﴿ وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا ﴾
-            </span>
-            <span className="text-[10px] text-emerald-400 font-sans border-r border-emerald-800 pr-2.5">
-              سورة المزمل
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <IntroPillToast show={showIntroPill} />
 
       {/* Top Quran Bar: Navigation, Surah/Juz Pickers, Search, Audio & Themes */}
       <header className="relative z-20 border-b border-emerald-900/50 bg-slate-950/90 backdrop-blur-md px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-xl shrink-0">
