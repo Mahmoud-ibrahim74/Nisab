@@ -62,5 +62,10 @@ contextBridge.exposeInMainWorld('nisabAPI', {
    */
   getKhatmahData: () => ipcRenderer.invoke('khatmah:get'),
   saveKhatmahData: (data) => ipcRenderer.invoke('khatmah:save', data),
+
+  /**
+   * Open External URL safely in default system browser
+   */
+  openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
 });
 

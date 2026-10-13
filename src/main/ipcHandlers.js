@@ -1,4 +1,4 @@
-const { app, ipcMain, BrowserWindow } = require('electron');
+const { app, ipcMain, BrowserWindow, shell } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { Worker } = require('node:worker_threads');
@@ -225,6 +225,19 @@ function registerIpcHandlers(resourcesDir) {
       console.error('Error saving Khatmah data to disk:', err);
       return false;
     }
+  });
+
+  // 11. Open External URL in default system browser
+  ipcMain.handle('app:openExternal', async (event, url) => {
+    try {
+      if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+        await shell.openExternal(url);
+        return true;
+      }
+    } catch (err) {
+      console.error('Failed to open external url:', err);
+    }
+    return false;
   });
 }
 
