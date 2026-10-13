@@ -152,7 +152,25 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
   // Dropdown menus state
   const [surahDropdownOpen, setSurahDropdownOpen] = useState(false);
+  const [surahSearchQuery, setSurahSearchQuery] = useState('');
   const [juzDropdownOpen, setJuzDropdownOpen] = useState(false);
+  const surahDropdownRef = useRef(null);
+  const juzDropdownRef = useRef(null);
+
+  // Close dropdown menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (surahDropdownRef.current && !surahDropdownRef.current.contains(e.target)) {
+        setSurahDropdownOpen(false);
+        setSurahSearchQuery('');
+      }
+      if (juzDropdownRef.current && !juzDropdownRef.current.contains(e.target)) {
+        setJuzDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // 1. Load Quran Raw Data and Index all 604 Standard Pages
   useEffect(() => {
@@ -444,9 +462,24 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
     return map;
   }, [pagesMap]);
 
-
-
-  // Bookmark Toggle
+  // Filtered Surahs based on search query in the Surah dropdown
+  const filteredSurahs = useMemo(() => {
+    if (!surahSearchQuery.trim()) return surahs;
+    const rawQ = surahSearchQuery.trim().toLowerCase();
+    const q = normalizeArabic(rawQ).replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+    return surahs.filter((s) => {
+      const normName = normalizeArabic(s.name || '');
+      const cleanName = normName.replace(/^سورة\s+/, '');
+      const numStr = String(s.number);
+      const engName = (s.englishName || '').toLowerCase();
+      return (
+        normName.includes(q) ||
+        cleanName.includes(q) ||
+        numStr === q ||
+        engName.includes(rawQ)
+      );
+    });
+  }, [surahs, surahSearchQuery]);
   const handleToggleBookmark = () => {
     if (bookmarkPage === currentPage) {
       setBookmarkPage(null);
@@ -999,11 +1032,13 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
       <header className="relative z-20 border-b border-emerald-900/50 bg-slate-950/90 backdrop-blur-md px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-xl shrink-0">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Surah Selector Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={surahDropdownRef}>
             <button
               onClick={() => {
-                setSurahDropdownOpen(!surahDropdownOpen);
+                const nextOpen = !surahDropdownOpen;
+                setSurahDropdownOpen(nextOpen);
                 setJuzDropdownOpen(false);
+                if (!nextOpen) setSurahSearchQuery('');
               }}
               className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:py-2 rounded-xl bg-emerald-950/70 border border-emerald-700/50 hover:border-amber-400 text-amber-300 font-bold text-xs sm:text-sm shadow transition"
               title="الانتقال إلى سورة محددة"
@@ -1012,35 +1047,74 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
               <span>
                 {pagesMap[currentPage]?.surahs?.[0]?.name || 'السورة'}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${surahDropdownOpen ? 'rotate-180 text-amber-300' : ''}`} />
             </button>
 
             {surahDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-72 max-h-80 overflow-y-auto bg-slate-900 border border-emerald-800 rounded-2xl shadow-2xl p-2 z-50 divide-y divide-emerald-900/30 scrollbar-thin scrollbar-thumb-emerald-700">
-                {surahs.map((s) => (
-                  <button
-                    key={s.number}
-                    onClick={() => {
+              <div
+                className="absolute right-0 mt-2 w-72 max-h-96 flex flex-col bg-slate-900/98 backdrop-blur-xl border border-emerald-700/60 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Search Bar Header */}
+                <div className="p-2 border-b border-emerald-900/60 bg-slate-950/70 sticky top-0 z-10">
+                  <div className="relative flex items-center">
+                    <Search className="w-3.5 h-3.5 text-emerald-400 absolute right-2.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={surahSearchQuery}
+                      onChange={(e) => setSurahSearchQuery(e.target.value)}
+                      placeholder="ابحث عن اسم السورة أو رقمها..."
+                      autoFocus
+                      className="w-full bg-slate-900 border border-emerald-800/80 rounded-xl pr-8 pl-7 py-1.5 text-xs text-amber-200 placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
+                    />
+                    {surahSearchQuery && (
+                      <button
+                        onClick={() => setSurahSearchQuery('')}
+                        className="absolute left-2 text-slate-400 hover:text-slate-200 p-0.5 rounded transition"
+                        title="مسح البحث"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Surahs Scrollable List */}
+                <div className="p-1.5 overflow-y-auto max-h-72 divide-y divide-emerald-900/30 scrollbar-thin scrollbar-thumb-emerald-700">
+                  {filteredSurahs.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">
+                      لا توجد سورة تطابق "{surahSearchQuery}"
+                    </div>
+                  ) : (
+                    filteredSurahs.map((s) => {
                       const startP = surahStartPages[s.number] || 1;
-                      jumpToPage(startP);
-                      setSurahDropdownOpen(false);
-                    }}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-right hover:bg-emerald-950/80 text-xs sm:text-sm transition text-slate-200 hover:text-amber-300"
-                  >
-                    <span>
-                      {s.number}. {s.name}
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-400">
-                      ص {toEasternArabic(surahStartPages[s.number])}
-                    </span>
-                  </button>
-                ))}
+                      return (
+                        <button
+                          key={s.number}
+                          onClick={() => {
+                            jumpToPage(startP);
+                            setSurahDropdownOpen(false);
+                            setSurahSearchQuery('');
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-right hover:bg-emerald-950/80 text-xs sm:text-sm transition text-slate-200 hover:text-amber-300 group"
+                        >
+                          <span className="font-semibold group-hover:text-amber-300">
+                            {s.number}. {s.name}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-400 group-hover:text-emerald-400">
+                            ص {toEasternArabic(startP)}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
           </div>
 
           {/* Juz Selector Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={juzDropdownRef}>
             <button
               onClick={() => {
                 setJuzDropdownOpen(!juzDropdownOpen);
