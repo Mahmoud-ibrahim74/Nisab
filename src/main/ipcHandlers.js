@@ -67,8 +67,8 @@ function registerIpcHandlers(resourcesDir) {
       const fullPath = safeResolveResourcePath(relativePath);
       const data = await fs.readFile(fullPath, 'utf8');
       const parsed = JSON.parse(data);
-      // Cache files smaller than 10MB in main memory
-      if (data.length < 10 * 1024 * 1024) {
+      // Cache files smaller than 25MB in main memory
+      if (data.length < 25 * 1024 * 1024) {
         jsonMemoryCache.set(relativePath, parsed);
       }
       return parsed;

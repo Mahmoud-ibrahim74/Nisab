@@ -15,7 +15,8 @@ import {
   BookmarkCheck,
   Coins,
   Award,
-  Library
+  Library,
+  Landmark
 } from 'lucide-react';
 import DashboardScreen from './screens/DashboardScreen';
 import QuranScreen from './screens/QuranScreen';
@@ -24,6 +25,7 @@ import BooksScreen from './screens/BooksScreen';
 import ZakatCalculatorScreen from './screens/ZakatCalculatorScreen';
 import HadithScreen from './screens/HadithScreen';
 import HadithInfoScreen from './screens/HadithInfoScreen';
+import IslamicHistoryScreen from './screens/IslamicHistoryScreen';
 import IslamicQuizzesScreen from './screens/IslamicQuizzesScreen';
 import AzkarScreen from './screens/AzkarScreen';
 import RoqiaScreen from './screens/RoqiaScreen';
@@ -42,6 +44,7 @@ const TABS = [
   { id: 'books', label: 'المكتبة الإسلامية', icon: Library, badge: 'جديد' },
   { id: 'zakat', label: 'حاسبة الزكاة', icon: Coins, badge: 'نِصاب' },
   { id: 'hadith', label: 'الحديث الشريف', icon: Scroll },
+  { id: 'history', label: 'التاريخ الإسلامي', icon: Landmark, badge: '6.1K' },
   { id: 'quizzes', label: 'المسابقات الإسلامية', icon: Award, badge: '5.8K' },
   { id: 'azkar', label: 'الأذكار', icon: Heart },
   { id: 'roqia', label: 'الرقية الشرعية', icon: ShieldCheck },
@@ -289,6 +292,20 @@ export default function App() {
                 hadithData={hadithInfoData}
                 onBack={() => setActiveTab('hadith')}
               />
+            </motion.div>
+          )}
+
+          {activeTab === 'history' && (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ width: '100%', height: '100%', minWidth: 0 }}
+              className="h-full w-full min-w-0"
+            >
+              <IslamicHistoryScreen onBack={() => setActiveTab('dashboard')} />
             </motion.div>
           )}
 

@@ -18,13 +18,18 @@ import {
   Trash2,
   Save,
   Maximize2,
-  Minimize2
+  Minimize2,
+  ArrowUp,
+  LayoutList,
+  BookOpen,
+  Layers
 } from 'lucide-react';
 import ArabesquePattern from './ArabesquePattern';
 import PrintPreview from '../screens/PrintPreview';
 import WarningAlert from './WarningAlert';
 import SwitchToggle from './SwitchToggle';
 import IntroPillToast from './IntroPillToast';
+import { findArabicMatches } from '../../utils/arabicNormalizer';
 
 // Pre-configured Auto Scroll Speeds
 const SCROLL_SPEEDS = [
@@ -88,6 +93,48 @@ const HIGHLIGHT_COLOR_CONFIG = {
 };
 
 /**
+ * Accurately highlights Arabic search matches using normalizer ranges
+ */
+function HighlightedArabicText({ text, query }) {
+  if (!text) return null;
+  const q = query ? query.trim() : '';
+  if (!q) return <>{text}</>;
+
+  const cleanQuery = q.startsWith('#') ? q.slice(1).trim() : q;
+  if (!cleanQuery) return <>{text}</>;
+
+  const ranges = findArabicMatches(text, cleanQuery);
+  if (!ranges || ranges.length === 0) return <>{text}</>;
+
+  const parts = [];
+  let lastIndex = 0;
+
+  ranges.forEach((range, idx) => {
+    if (range.start > lastIndex) {
+      parts.push(
+        <span key={`txt-${idx}`}>{text.slice(lastIndex, range.start)}</span>
+      );
+    }
+    const matchedSegment = text.slice(range.start, range.end);
+    parts.push(
+      <mark
+        key={`match-${idx}`}
+        className="bg-amber-400/35 text-amber-200 font-bold px-1 py-0.5 rounded-lg border-b-2 border-amber-400/90 inline-block align-baseline mx-0.5 select-text shadow-sm"
+      >
+        {matchedSegment}
+      </mark>
+    );
+    lastIndex = range.end;
+  });
+
+  if (lastIndex < text.length) {
+    parts.push(<span key="txt-end">{text.slice(lastIndex)}</span>);
+  }
+
+  return <>{parts}</>;
+}
+
+/**
  * Computes non-overlapping render slices from full text and highlight ranges
  */
 function getRenderSlices(fullText, highlights) {
@@ -148,9 +195,8 @@ function getSelectionOffsetsWithin(element, fullText = '') {
 
   // Check if selection intersects the target element
   const isInside =
-    element.contains(range.startContainer) ||
-    element.contains(range.endContainer) ||
-    (range.commonAncestorContainer && range.commonAncestorContainer.contains(element));
+    element.contains(range.startContainer) &&
+    element.contains(range.endContainer);
   if (!isInside) return null;
 
   let charCount = 0;
@@ -210,8 +256,24 @@ function getSelectionOffsetsWithin(element, fullText = '') {
 
   if (start >= end) return null;
 
-  const resolvedText = fullText ? fullText.slice(start, end).trim() : rawSelectedText;
-  if (!resolvedText) return null;
+  let resolvedText = fullText ? fullText.slice(start, end) : rawSelectedText;
+  if (!resolvedText || !resolvedText.trim()) return null;
+
+  // Trim whitespace boundaries so highlight wraps words tightly
+  if (fullText) {
+    const trimmed = resolvedText.trim();
+    const leadingSpaces = resolvedText.indexOf(trimmed[0]);
+    if (leadingSpaces > 0) {
+      start += leadingSpaces;
+    }
+    const trailingSpaces = resolvedText.length - leadingSpaces - trimmed.length;
+    if (trailingSpaces > 0) {
+      end -= trailingSpaces;
+    }
+    resolvedText = trimmed;
+  }
+
+  if (start >= end || !resolvedText) return null;
 
   return { start, end, text: resolvedText };
 }
@@ -243,6 +305,10 @@ export default function TextView({
   enableNavigation = true,
   enableAutoScroll = true,
   enableFullscreen = true,
+  lazyLoad = false,
+  partitionSize = 20,
+  headerExtra = null,
+  searchQuery = '',
   className = '',
 
   // Backward-compatibility props for HadithInfoScreen:
@@ -263,11 +329,25 @@ export default function TextView({
       setActiveItem(directHadith);
     } else if (hadithData?.hadith) {
       setActiveItem(hadithData.hadith);
+    } else if (propItemsList) {
+      if (propItemsList.length === 0) {
+        setActiveItem(null);
+      } else {
+        setActiveItem((prev) => {
+          if (!prev) return propItemsList[0];
+          const exists = propItemsList.some(
+            (it) => (it.idInBook || it.id) === (prev.idInBook || prev.id)
+          );
+          return exists ? prev : propItemsList[0];
+        });
+      }
     }
-  }, [directHadith, hadithData]);
+  }, [directHadith, hadithData, propItemsList]);
 
   // Derived Title, Author, Subtitle, ID
   const displayTitle =
+    (activeItem?.title && propTitle ? `${propTitle} • ${activeItem.title}` : null) ||
+    activeItem?.title ||
     propTitle ||
     directBookTitle ||
     hadithData?.bookTitle ||
@@ -357,6 +437,22 @@ export default function TextView({
   const noScrollTimerRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Lazy Partition Scrolling States
+  const [visiblePartitionCount, setVisiblePartitionCount] = useState(1);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  // Reset partition count on itemsList change (e.g. search / era filter)
+  useEffect(() => {
+    setVisiblePartitionCount(1);
+  }, [propItemsList]);
+
+  // Sliced partition items for lazy scrolling
+  const displayedItems = useMemo(() => {
+    if (!lazyLoad) return [];
+    const list = propItemsList || [];
+    return list.slice(0, visiblePartitionCount * partitionSize);
+  }, [lazyLoad, propItemsList, visiblePartitionCount, partitionSize]);
+
   const textContainerRef = useRef(null);
 
   const fontSizes = [
@@ -428,31 +524,85 @@ export default function TextView({
     [resolvedStorageKey]
   );
 
-  // MouseUp Selection Handler on Text
-  const handleMouseUpText = useCallback(() => {
-    if (!isPenActive || penMode === 'eraser' || !textContainerRef.current || !activeText) return;
+  // Unified MouseUp Selection Handler on Text (supports single item & continuous lazy-loaded documents)
+  const handleMouseUpSelection = useCallback(() => {
+    if (!isPenActive || penMode === 'eraser') return;
 
-    const offsets = getSelectionOffsetsWithin(textContainerRef.current, activeText);
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+
+    const range = selection.getRangeAt(0);
+    const node = range.commonAncestorContainer || range.startContainer;
+    const targetEl = (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement)?.closest(
+      '[data-text-container="true"]'
+    );
+
+    if (!targetEl) return;
+
+    const targetItemId = targetEl.getAttribute('data-item-id');
+    const field = targetEl.getAttribute('data-field') || 'text';
+
+    let targetText = '';
+    let targetItem = null;
+
+    if (lazyLoad) {
+      if (!targetItemId) return;
+      targetItem =
+        displayedItems.find((it) => String(it.idInBook || it.id) === String(targetItemId)) ||
+        (propItemsList || []).find((it) => String(it.idInBook || it.id) === String(targetItemId));
+      if (!targetItem) return;
+      targetText =
+        field === 'title'
+          ? (targetItem.title || '')
+          : (targetItem.text || targetItem.arabic || '');
+    } else {
+      targetText = activeText;
+      targetItem = activeItem;
+    }
+
+    if (!targetText) return;
+
+    const offsets = getSelectionOffsetsWithin(targetEl, targetText);
     if (!offsets || offsets.start >= offsets.end || !offsets.text) return;
 
     const newHighlight = {
       id: `hl_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      itemId: lazyLoad ? String(targetItemId) : undefined,
+      field: field,
       start: offsets.start,
       end: offsets.end,
       color: penColor,
       text: offsets.text
     };
 
-    const filtered = highlights.filter(
-      (h) => !(h.start >= newHighlight.start && h.end <= newHighlight.end)
-    );
-    const updated = [...filtered, newHighlight].sort((a, b) => a.start - b.start);
+    const filtered = highlights.filter((h) => {
+      if (lazyLoad && String(h.itemId) !== String(newHighlight.itemId)) return true;
+      if (h.field && h.field !== newHighlight.field) return true;
+      return !(h.start >= newHighlight.start && h.end <= newHighlight.end);
+    });
 
-    const sel = window.getSelection();
-    if (sel) sel.removeAllRanges();
+    const updated = [...filtered, newHighlight].sort((a, b) => {
+      if (a.itemId && b.itemId && a.itemId !== b.itemId) {
+        return String(a.itemId).localeCompare(String(b.itemId), undefined, { numeric: true });
+      }
+      return a.start - b.start;
+    });
+
+    if (selection) selection.removeAllRanges();
 
     saveHighlightsToDiskAndStorage(updated, 'تم حفظ المقطع المظلل على القرص 💾');
-  }, [isPenActive, penMode, activeText, penColor, highlights, saveHighlightsToDiskAndStorage]);
+  }, [
+    isPenActive,
+    penMode,
+    lazyLoad,
+    displayedItems,
+    propItemsList,
+    activeText,
+    activeItem,
+    penColor,
+    highlights,
+    saveHighlightsToDiskAndStorage
+  ]);
 
   // Global document mouseup listener
   useEffect(() => {
@@ -460,7 +610,7 @@ export default function TextView({
 
     const onDocMouseUp = () => {
       setTimeout(() => {
-        handleMouseUpText();
+        handleMouseUpSelection();
       }, 20);
     };
 
@@ -468,14 +618,14 @@ export default function TextView({
     return () => {
       document.removeEventListener('mouseup', onDocMouseUp);
     };
-  }, [isPenActive, penMode, handleMouseUpText]);
+  }, [isPenActive, penMode, handleMouseUpSelection]);
 
   const handleHighlightClick = (highlightId, e) => {
     if (!isPenActive) return;
     e.stopPropagation();
 
     const updated = highlights.filter((h) => h.id !== highlightId);
-    saveHighlightsToDiskAndStorage(updated, '');
+    saveHighlightsToDiskAndStorage(updated, 'تمت إزالة التظليل 🗑️');
   };
 
   const handleClearAllHighlights = () => {
@@ -484,7 +634,7 @@ export default function TextView({
   };
 
   const handleConfirmClearAllHighlights = () => {
-    saveHighlightsToDiskAndStorage([], '');
+    saveHighlightsToDiskAndStorage([], 'تم مسح كافة التظليلات 🗑️');
     setClearAlertState('success');
   };
 
@@ -555,6 +705,50 @@ export default function TextView({
     });
   };
 
+  // Copy individual item from partition feed
+  const handleCopyItem = useCallback((item) => {
+    const lines = [
+      `« ${item.text || item.arabic} »`,
+      '',
+      item.title ? `[الحدث: ${item.title}]` : null,
+      item.id ? `[الرقم: #${item.id}]` : null,
+      Array.isArray(item.date) ? `[التاريخ: ${item.date.join(' - ')}]` : (item.date ? `[التاريخ: ${item.date}]` : null),
+      displayTitle ? `[المصدر: ${displayTitle}]` : null,
+      'تطبيق نِصاب'
+    ].filter(Boolean);
+
+    navigator.clipboard.writeText(lines.join('\n'));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [displayTitle]);
+
+  // Toggle favorite for an individual item in partition feed
+  const handleToggleItemFavorite = useCallback((item, itemKey) => {
+    setFavorites((prev) => {
+      const exists = prev.some((f) => f.key === itemKey || f.id === item.id);
+      let updated;
+      if (exists) {
+        updated = prev.filter((f) => f.key !== itemKey && f.id !== item.id);
+      } else {
+        const newFav = {
+          key: itemKey,
+          id: item.id,
+          idInBook: item.idInBook || item.id,
+          bookTitle: displayTitle || 'التاريخ الإسلامي',
+          title: item.title,
+          arabic: item.text || item.arabic,
+          date: item.date
+        };
+        updated = [newFav, ...prev];
+      }
+      try {
+        localStorage.setItem('nisab_favorite_hadiths', JSON.stringify(updated));
+        window.dispatchEvent(new Event('nisab-favorites-changed'));
+      } catch (err) {}
+      return updated;
+    });
+  }, [displayTitle]);
+
   const handlePrint = () => {
     setShowPrintPreview(true);
   };
@@ -562,6 +756,18 @@ export default function TextView({
   const renderSlices = useMemo(() => {
     return getRenderSlices(activeText, highlights);
   }, [activeText, highlights]);
+
+  // Group highlights by itemId for lazyLoad mode
+  const highlightsByItemId = useMemo(() => {
+    const map = {};
+    for (let i = 0; i < highlights.length; i++) {
+      const h = highlights[i];
+      const key = h.itemId ? String(h.itemId) : 'single';
+      if (!map[key]) map[key] = [];
+      map[key].push(h);
+    }
+    return map;
+  }, [highlights]);
 
   const activeCursor = useMemo(() => {
     if (!isPenActive) return 'text';
@@ -705,10 +911,21 @@ export default function TextView({
             window.scrollBy(0, stepPixels);
           }
 
+          // When auto-scrolling in lazyLoad mode, load next partition before reaching the bottom
+          if (lazyLoad && propItemsList && displayedItems.length < propItemsList.length) {
+            if (container.scrollTop + container.clientHeight >= maxScroll - 400) {
+              setVisiblePartitionCount((prev) => prev + 1);
+            }
+          }
+
           // Stop if reached the very end
           if (container.scrollTop >= maxScroll - 2) {
-            setIsAutoScroll(false);
-            return;
+            if (lazyLoad && propItemsList && displayedItems.length < propItemsList.length) {
+              setVisiblePartitionCount((prev) => prev + 1);
+            } else {
+              setIsAutoScroll(false);
+              return;
+            }
           }
         }
       } else {
@@ -726,18 +943,32 @@ export default function TextView({
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [isAutoScroll, selectedSpeed]);
+  }, [isAutoScroll, selectedSpeed, lazyLoad, propItemsList, displayedItems.length]);
 
-  // Scroll listener on container to track canScrollDown indicator
+  // Scroll listener on container to track canScrollDown, backToTop, and lazy partition loading
   const handleContainerScroll = useCallback(() => {
     if (!scrollContainerRef.current) return;
     const { scrollHeight, clientHeight, scrollTop } = scrollContainerRef.current;
     const hasScroll = scrollHeight > clientHeight + 5;
     setCanScrollDown(hasScroll && scrollTop < scrollHeight - clientHeight - 10);
-  }, []);
+    setShowBackToTop(scrollTop > 600);
 
-  // Empty State
-  if (!activeText && !activeItem) {
+    // Lazy load next partition when approaching the bottom (within 600px)
+    if (lazyLoad && propItemsList && propItemsList.length > 0) {
+      if (scrollTop + clientHeight >= scrollHeight - 600) {
+        setVisiblePartitionCount((prev) => {
+          if (prev * partitionSize < propItemsList.length) {
+            return prev + 1;
+          }
+          return prev;
+        });
+      }
+    }
+  }, [lazyLoad, propItemsList, partitionSize]);
+
+  // Empty State (Full Screen only if no headerExtra is provided)
+  const hasItems = propItemsList && propItemsList.length > 0;
+  if (!activeText && !activeItem && !hasItems && !headerExtra) {
     return (
       <div className={`relative h-full w-full bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 ${className}`} dir="rtl">
         <ArabesquePattern className="opacity-10 text-emerald-500" />
@@ -1024,6 +1255,13 @@ export default function TextView({
           </div>
         </div>
 
+        {/* Optional Header Extra (e.g. search bars, era filters, jump controls) */}
+        {headerExtra && (
+          <div className="w-full no-print">
+            {headerExtra}
+          </div>
+        )}
+
         {/* PEN WRITER TOOLBAR */}
         <AnimatePresence>
           {isPenActive && (
@@ -1124,174 +1362,397 @@ export default function TextView({
           )}
         </AnimatePresence>
 
-        {/* Grand Text Presentation Card */}
-        <motion.div
-          key={displayId || activeText.slice(0, 30)}
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className="relative w-full min-w-0 rounded-3xl p-5 sm:p-8 md:p-10 lg:p-12 bg-gradient-to-b from-slate-900/90 via-slate-900/80 to-emerald-950/40 border border-amber-500/30 shadow-2xl backdrop-blur-xl overflow-hidden select-text text-right"
-        >
-          <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent no-print" />
+        {/* Main Content Area: Unified Grand Text Presentation Card */}
+        {!activeItem && !activeText && (!lazyLoad || displayedItems.length === 0) ? (
+          <div className="py-20 text-center space-y-4 select-none">
+            <Scroll className="w-12 h-12 text-amber-400/80 mx-auto animate-pulse" />
+            <h2 className="text-lg font-bold text-slate-300">{emptyMessage}</h2>
+            <p className="text-xs text-slate-500">جرب البحث بكلمة أخرى أو برقم حدث مختلف</p>
+          </div>
+        ) : (
+          <>
+            {/* Grand Text Presentation Card (Single Unified Paper / Document) */}
+            <motion.div
+              key={lazyLoad ? 'lazy_continuous_stream' : (displayId || activeText.slice(0, 30))}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full min-w-0 rounded-3xl p-5 sm:p-8 md:p-10 lg:p-12 bg-gradient-to-b from-slate-900/90 via-slate-900/80 to-emerald-950/40 border border-amber-500/30 shadow-2xl backdrop-blur-xl overflow-hidden select-text text-right"
+            >
+              <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent no-print" />
 
-          {/* Metadata Header Banner */}
-          {(displayTitle || displayId || displaySubtitle) && (
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-emerald-900/50 select-none">
-              <div className="flex items-center gap-3">
-                {displayId && (
-                  <span className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-950 border border-amber-500/40 text-amber-300 flex items-center justify-center font-mono font-bold text-sm sm:text-base shadow-lg">
-                    #{displayId}
-                  </span>
-                )}
-                <div>
-                  {displayTitle && (
-                    <h1 className="text-lg sm:text-xl font-bold text-amber-300 font-serif">
-                      {displayTitle}
-                    </h1>
+              {/* Metadata Header Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-emerald-900/50 select-none">
+                <div className="flex items-center gap-3">
+                  {!lazyLoad && displayId && (
+                    <span className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-950 border border-amber-500/40 text-amber-300 flex items-center justify-center font-mono font-bold text-sm sm:text-base shadow-lg">
+                      #{displayId}
+                    </span>
                   )}
-                  {displayAuthor && (
-                    <p className="text-xs text-emerald-400 mt-0.5">
-                      {displayAuthor}
-                    </p>
+                  {lazyLoad && (
+                    <span className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-950 border border-amber-500/40 text-amber-300 flex items-center justify-center shadow-lg">
+                      <Scroll className="w-5 h-5 text-amber-400" />
+                    </span>
+                  )}
+                  <div>
+                    {displayTitle && (
+                      <h1 className="text-lg sm:text-xl font-bold text-amber-300 font-serif">
+                        <HighlightedArabicText text={displayTitle} query={searchQuery} />
+                      </h1>
+                    )}
+                    {displayAuthor && (
+                      <p className="text-xs text-emerald-400 mt-0.5">
+                        {displayAuthor}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {lazyLoad && propItemsList && (
+                    <div className="px-3.5 py-1.5 rounded-2xl bg-emerald-950/80 border border-emerald-800/60 text-xs text-amber-300 font-mono">
+                      {displayedItems.length} من {propItemsList.length} حدث
+                    </div>
+                  )}
+
+                  {highlights.length > 0 && (
+                    <div
+                      className="px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 select-none"
+                      title="المواضع المظللة والمحفوظة"
+                    >
+                      <Highlighter className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{highlights.length} موضع مظلل</span>
+                    </div>
+                  )}
+
+                  {!lazyLoad && Array.isArray(activeItem?.date) && activeItem.date.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {activeItem.date.map((dt, dIdx) => (
+                        <span
+                          key={dIdx}
+                          className="px-2.5 py-1 rounded-xl bg-emerald-950/80 border border-emerald-800/60 text-xs text-amber-300 font-mono"
+                        >
+                          {dt}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {displaySubtitle && (
+                    <div className="px-3.5 py-1.5 rounded-2xl bg-emerald-950/80 border border-emerald-800/60 text-xs text-amber-300 font-serif">
+                      {displaySubtitle}
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                {highlights.length > 0 && (
-                  <div
-                    className="px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5"
-                    title="المواضع المظللة والمحفوظة في هذا النص"
-                  >
-                    <Highlighter className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{highlights.length} موضع مظلل</span>
-                  </div>
-                )}
+              {/* Full Arabic Text Body: Either Continuous Flowing Stream OR Single Text */}
+              <div
+                className="my-6 sm:my-8 select-text transition-all w-full min-w-0"
+                style={{ cursor: activeCursor }}
+              >
+                {lazyLoad ? (
+                  /* Continuous Unified Text Flow with Lazy Loading */
+                  <div className="space-y-8 select-text">
+                    {displayedItems.map((item, idx) => {
+                      const itemId = String(item.idInBook || item.id || idx + 1);
+                      const itemTitle = item.title || '';
+                      const itemText = item.text || item.arabic || '';
+                      const itemDates = Array.isArray(item.date) ? item.date : (item.date ? [item.date] : []);
 
-                {displaySubtitle && (
-                  <div className="px-3.5 py-1.5 rounded-2xl bg-emerald-950/80 border border-emerald-800/60 text-xs text-amber-300 font-serif">
-                    {displaySubtitle}
+                      const itemHighlights = highlightsByItemId[itemId] || [];
+                      const textHighlights = itemHighlights.filter((h) => !h.field || h.field === 'text');
+                      const titleHighlights = itemHighlights.filter((h) => h.field === 'title');
+
+                      const textSlices = getRenderSlices(itemText, textHighlights);
+                      const titleSlices = getRenderSlices(itemTitle, titleHighlights);
+
+                      return (
+                        <div key={itemId} className="pt-6 first:pt-0 border-t border-emerald-900/30 first:border-t-0 text-right">
+                          {/* Event Section Heading */}
+                          <div className="flex flex-wrap items-center gap-2 mb-3 pb-2 border-b border-emerald-900/20 select-none">
+                            <span className="text-amber-400 font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-emerald-950 border border-amber-500/30 shadow-sm">
+                              #{itemId}
+                            </span>
+                            {itemTitle && (
+                              <h2
+                                data-text-container="true"
+                                data-item-id={itemId}
+                                data-field="title"
+                                onMouseUp={handleMouseUpSelection}
+                                className="text-base sm:text-lg font-bold text-amber-200 font-serif inline-block select-text"
+                                style={{ cursor: activeCursor }}
+                              >
+                                {titleSlices.map((slice, sIdx) => {
+                                  if (slice.isHighlight) {
+                                    const colorCfg =
+                                      HIGHLIGHT_COLOR_CONFIG[slice.color] || HIGHLIGHT_COLOR_CONFIG.amber;
+                                    return (
+                                      <mark
+                                        key={`hl-title-${slice.highlightId}-${sIdx}`}
+                                        onClick={(e) => handleHighlightClick(slice.highlightId, e)}
+                                        title={
+                                          isPenActive
+                                            ? penMode === 'eraser'
+                                              ? 'انقر لمسح هذا التظليل'
+                                              : 'انقر لإزالة التظليل'
+                                            : 'نص مظلل ومحفوظ على القرص'
+                                        }
+                                        className={`${colorCfg.bg} ${colorCfg.border} ${colorCfg.text} px-0.5 py-0.5 rounded transition-all duration-150 inline ${
+                                          isPenActive ? 'hover:opacity-75 hover:line-through cursor-pointer' : ''
+                                        }`}
+                                      >
+                                        <HighlightedArabicText text={slice.text} query={searchQuery} />
+                                      </mark>
+                                    );
+                                  }
+                                  return (
+                                    <span key={`plain-title-${sIdx}`}>
+                                      <HighlightedArabicText text={slice.text} query={searchQuery} />
+                                    </span>
+                                  );
+                                })}
+                              </h2>
+                            )}
+
+                            {itemHighlights.length > 0 && (
+                              <span
+                                className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/40 text-[10px] sm:text-xs text-amber-300 font-semibold flex items-center gap-1 select-none"
+                                title="يوجد تظليلات في هذا الحدث"
+                              >
+                                <Highlighter className="w-3 h-3 text-amber-400" />
+                                <span>{itemHighlights.length} مظلل</span>
+                              </span>
+                            )}
+
+                            {itemDates.length > 0 && (
+                              <div className="flex items-center gap-1.5 mr-auto">
+                                {itemDates.map((dt, dIdx) => (
+                                  <span
+                                    key={dIdx}
+                                    className="px-2 py-0.5 rounded-md bg-emerald-950/70 border border-emerald-800/50 text-[10px] sm:text-xs text-emerald-400 font-mono"
+                                  >
+                                    {dt}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Event Narrative Body */}
+                          <p
+                            data-text-container="true"
+                            data-item-id={itemId}
+                            data-field="text"
+                            onMouseUp={handleMouseUpSelection}
+                            className={`font-serif text-slate-100 text-justify tracking-wide leading-loose select-text break-words [overflow-wrap:anywhere] ${fontSizes[fontSizeIndex].className}`}
+                            style={{ cursor: activeCursor }}
+                          >
+                            {textSlices.map((slice, sIdx) => {
+                              if (slice.isHighlight) {
+                                const colorCfg =
+                                  HIGHLIGHT_COLOR_CONFIG[slice.color] || HIGHLIGHT_COLOR_CONFIG.amber;
+                                return (
+                                  <mark
+                                    key={`hl-text-${slice.highlightId}-${sIdx}`}
+                                    onClick={(e) => handleHighlightClick(slice.highlightId, e)}
+                                    title={
+                                      isPenActive
+                                        ? penMode === 'eraser'
+                                          ? 'انقر لمسح هذا التظليل'
+                                          : 'انقر لإزالة التظليل'
+                                        : 'نص مظلل ومحفوظ على القرص'
+                                    }
+                                    className={`${colorCfg.bg} ${colorCfg.border} ${colorCfg.text} px-0.5 py-0.5 rounded transition-all duration-150 inline ${
+                                      isPenActive ? 'hover:opacity-75 hover:line-through cursor-pointer' : ''
+                                    }`}
+                                  >
+                                    <HighlightedArabicText text={slice.text} query={searchQuery} />
+                                  </mark>
+                                );
+                              }
+                              return (
+                                <span key={`plain-text-${sIdx}`}>
+                                  <HighlightedArabicText text={slice.text} query={searchQuery} />
+                                </span>
+                              );
+                            })}
+                          </p>
+                        </div>
+                      );
+                    })}
+
+                    {/* Partition Loading Status at the bottom of the continuous text */}
+                    <div className="pt-6 text-center select-none no-print border-t border-emerald-900/40">
+                      {displayedItems.length < (propItemsList?.length || 0) ? (
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-950/70 border border-emerald-800/60 text-xs text-emerald-300 shadow">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                            </span>
+                            <span>
+                              عرض {displayedItems.length} من أصل {propItemsList.length} حدث تاريخي • مرر لأسفل لتحميل المزيد
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setVisiblePartitionCount((prev) => prev + 1)}
+                            className="px-6 py-2.5 rounded-2xl bg-slate-900 hover:bg-emerald-900 border border-emerald-700/60 hover:border-amber-400/80 text-amber-300 text-xs font-bold transition shadow-lg active:scale-95 flex items-center gap-2"
+                          >
+                            <span>تحميل الجزء التالي ({Math.min(partitionSize, propItemsList.length - displayedItems.length)} حدث آخر)</span>
+                            <ArrowDown className="w-3.5 h-3.5 text-amber-400" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-950/60 border border-amber-500/30 text-amber-300 text-xs font-semibold shadow">
+                          <Sparkles className="w-4 h-4 text-amber-400" />
+                          <span>اكتمل عرض كافة الأحداث التاريخية ({propItemsList?.length || 0} حدث) ✨</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* Single Text View (Hadith style) */
+                  <div
+                    className={`font-serif text-slate-100 text-justify tracking-wide select-text selection:bg-amber-400/40 selection:text-amber-100 leading-loose break-words [overflow-wrap:anywhere] ${fontSizes[fontSizeIndex].className}`}
+                  >
+                    <span className="text-amber-400 font-serif text-2xl sm:text-3xl font-bold inline-block ml-1 select-none">
+                      «
+                    </span>
+
+                    <span
+                      ref={textContainerRef}
+                      data-text-container="true"
+                      data-field="single"
+                      onMouseUp={handleMouseUpSelection}
+                      className="select-text"
+                      style={{ cursor: activeCursor }}
+                    >
+                      {renderSlices.map((slice, sIdx) => {
+                        if (slice.isHighlight) {
+                          const colorCfg =
+                            HIGHLIGHT_COLOR_CONFIG[slice.color] || HIGHLIGHT_COLOR_CONFIG.amber;
+                          return (
+                            <mark
+                              key={`hl-${slice.highlightId}-${sIdx}`}
+                              onClick={(e) => handleHighlightClick(slice.highlightId, e)}
+                              title={
+                                isPenActive
+                                  ? penMode === 'eraser'
+                                    ? 'انقر لمسح هذا التظليل'
+                                    : 'انقر لإزالة التظليل'
+                                  : 'نص مظلل ومحفوظ على القرص'
+                              }
+                              className={`${colorCfg.bg} ${colorCfg.border} ${colorCfg.text} px-0.5 py-0.5 rounded transition-all duration-150 inline ${
+                                isPenActive ? 'hover:opacity-75 hover:line-through cursor-pointer' : ''
+                              }`}
+                            >
+                              <HighlightedArabicText text={slice.text} query={searchQuery} />
+                            </mark>
+                          );
+                        }
+                        return (
+                          <span key={`plain-${sIdx}`}>
+                            <HighlightedArabicText text={slice.text} query={searchQuery} />
+                          </span>
+                        );
+                      })}
+                    </span>
+
+                    <span className="text-amber-400 font-serif text-2xl sm:text-3xl font-bold inline-block mr-1 select-none">
+                      »
+                    </span>
                   </div>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* Full Arabic Text Body (Interactive Pen Highlighter & Selectable) */}
-          <div
-            className="my-6 sm:my-8 select-text transition-all w-full min-w-0"
-            style={{ cursor: activeCursor }}
-          >
-            <div
-              className={`font-serif text-slate-100 text-justify tracking-wide select-text selection:bg-amber-400/40 selection:text-amber-100 leading-loose break-words [overflow-wrap:anywhere] ${fontSizes[fontSizeIndex].className}`}
-            >
-              <span className="text-amber-400 font-serif text-2xl sm:text-3xl font-bold inline-block ml-1 select-none">
-                «
-              </span>
+              {/* Footer Attribution */}
+              <div className="pt-6 border-t border-emerald-900/50 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 select-none">
+                <div className="flex flex-wrap items-center gap-2">
+                  {displayTitle && (
+                    <span className="px-3 py-1 rounded-xl bg-slate-950 border border-emerald-900/50 text-emerald-400">
+                      {displayTitle}
+                    </span>
+                  )}
+                  {!lazyLoad && displayId && (
+                    <span className="px-3 py-1 rounded-xl bg-slate-950 border border-emerald-900/50 text-slate-300 font-mono">
+                      #{displayId}
+                    </span>
+                  )}
+                  {displaySubtitle && (
+                    <span className="px-3 py-1 rounded-xl bg-slate-950 border border-emerald-900/50 text-amber-300">
+                      {displaySubtitle}
+                    </span>
+                  )}
+                </div>
 
-              {/* Text Area Container for precise selection calculation */}
-              <span
-                ref={textContainerRef}
-                onMouseUp={handleMouseUpText}
-                className="select-text"
-                style={{ cursor: activeCursor }}
-              >
-                {renderSlices.map((slice, sIdx) => {
-                  if (slice.isHighlight) {
-                    const colorCfg =
-                      HIGHLIGHT_COLOR_CONFIG[slice.color] || HIGHLIGHT_COLOR_CONFIG.amber;
-                    return (
-                      <mark
-                        key={`hl-${slice.highlightId}-${sIdx}`}
-                        onClick={(e) => handleHighlightClick(slice.highlightId, e)}
-                        title={
-                          isPenActive
-                            ? penMode === 'eraser'
-                              ? 'انقر لمسح هذا التظليل'
-                              : 'انقر لإزالة التظليل'
-                            : 'نص مظلل ومحفوظ على القرص'
-                        }
-                        className={`${colorCfg.bg} ${colorCfg.border} ${colorCfg.text} px-0.5 py-0.5 rounded transition-all duration-150 inline ${
-                          isPenActive ? 'hover:opacity-75 hover:line-through cursor-pointer' : ''
-                        }`}
-                      >
-                        {slice.text}
-                      </mark>
-                    );
-                  }
-                  return <span key={`plain-${sIdx}`}>{slice.text}</span>;
-                })}
-              </span>
+                <div className="text-[11px] text-emerald-500/90 font-medium no-print">
+                  {footerLabel}
+                </div>
+              </div>
 
-              <span className="text-amber-400 font-serif text-2xl sm:text-3xl font-bold inline-block mr-1 select-none">
-                »
-              </span>
-            </div>
-          </div>
+              {/* Print Document Verification Footer */}
+              <div className="hidden print:block text-center pt-5 mt-6 border-t border-slate-300 text-xs text-slate-600">
+                طُبع من تطبيق نِصاب للمسلمين • {new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </div>
+            </motion.div>
 
-          {/* Footer Attribution */}
-          <div className="pt-6 border-t border-emerald-900/50 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 select-none">
-            <div className="flex flex-wrap items-center gap-2">
-              {displayTitle && (
-                <span className="px-3 py-1 rounded-xl bg-slate-950 border border-emerald-900/50 text-emerald-400">
-                  {displayTitle}
+            {/* Previous & Next Navigation Controls (Disabled in lazyLoad mode) */}
+            {!lazyLoad && navigationList.length > 0 && enableNavigation && (
+              <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 select-none pt-2 no-print w-full">
+                <button
+                  onClick={handlePrev}
+                  disabled={!hasPrev}
+                  className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl bg-slate-900/90 border border-emerald-800/80 hover:border-amber-400/80 text-xs sm:text-sm font-semibold text-slate-200 hover:text-amber-300 disabled:opacity-30 disabled:cursor-not-allowed transition shadow-lg active:scale-95"
+                >
+                  <ChevronRight className="w-4 h-4 text-amber-400" />
+                  <span>السابق ({currentIndex > 0 ? `#${navigationList[currentIndex - 1].idInBook || navigationList[currentIndex - 1].id}` : ''})</span>
+                </button>
+
+                <span className="text-xs text-slate-500 font-mono">
+                  {currentIndex + 1} من {navigationList.length}
                 </span>
-              )}
-              {displayId && (
-                <span className="px-3 py-1 rounded-xl bg-slate-950 border border-emerald-900/50 text-slate-300 font-mono">
-                  #{displayId}
-                </span>
-              )}
-              {displaySubtitle && (
-                <span className="px-3 py-1 rounded-xl bg-slate-950 border border-emerald-900/50 text-amber-300">
-                  {displaySubtitle}
-                </span>
-              )}
-            </div>
 
-            <div className="text-[11px] text-emerald-500/90 font-medium no-print">
-              {footerLabel}
-            </div>
-          </div>
-
-          {/* Print Document Verification Footer */}
-          <div className="hidden print:block text-center pt-5 mt-6 border-t border-slate-300 text-xs text-slate-600">
-            طُبع من تطبيق نِصاب للمسلمين • {new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}
-          </div>
-        </motion.div>
-
-        {/* Previous & Next Navigation Controls */}
-        {navigationList.length > 0 && enableNavigation && (
-          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 select-none pt-2 no-print w-full">
-            <button
-              onClick={handlePrev}
-              disabled={!hasPrev}
-              className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl bg-slate-900/90 border border-emerald-800/80 hover:border-amber-400/80 text-xs sm:text-sm font-semibold text-slate-200 hover:text-amber-300 disabled:opacity-30 disabled:cursor-not-allowed transition shadow-lg active:scale-95"
-            >
-              <ChevronRight className="w-4 h-4 text-amber-400" />
-              <span>السابق ({currentIndex > 0 ? `#${navigationList[currentIndex - 1].idInBook || navigationList[currentIndex - 1].id}` : ''})</span>
-            </button>
-
-            <span className="text-xs text-slate-500 font-mono">
-              {currentIndex + 1} من {navigationList.length}
-            </span>
-
-            <button
-              onClick={handleNext}
-              disabled={!hasNext}
-              className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl bg-slate-900/90 border border-emerald-800/80 hover:border-amber-400/80 text-xs sm:text-sm font-semibold text-slate-200 hover:text-amber-300 disabled:opacity-30 disabled:cursor-not-allowed transition shadow-lg active:scale-95"
-            >
-              <span>التالي ({hasNext ? `#${navigationList[currentIndex + 1].idInBook || navigationList[currentIndex + 1].id}` : ''})</span>
-              <ChevronLeft className="w-4 h-4 text-amber-400" />
-            </button>
-          </div>
+                <button
+                  onClick={handleNext}
+                  disabled={!hasNext}
+                  className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl bg-slate-900/90 border border-emerald-800/80 hover:border-amber-400/80 text-xs sm:text-sm font-semibold text-slate-200 hover:text-amber-300 disabled:opacity-30 disabled:cursor-not-allowed transition shadow-lg active:scale-95"
+                >
+                  <span>التالي ({hasNext ? `#${navigationList[currentIndex + 1].idInBook || navigationList[currentIndex + 1].id}` : ''})</span>
+                  <ChevronLeft className="w-4 h-4 text-amber-400" />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
+
+      {/* Floating Back to Top Button */}
+      <AnimatePresence>
+        {showBackToTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            type="button"
+            onClick={() => {
+              if (scrollContainerRef.current) scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="fixed bottom-6 right-6 z-40 p-3 rounded-2xl bg-emerald-950/90 border border-amber-500/60 text-amber-300 shadow-2xl backdrop-blur-md hover:bg-emerald-900 transition active:scale-95 no-print"
+            title="الصعود لأعلى الصفحة"
+          >
+            <ArrowUp className="w-5 h-5 text-amber-400" />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Live Interactive Print Preview Screen */}
       {showPrintPreview && (
         <PrintPreview
           hadith={{ ...activeItem, arabic: activeText }}
+          itemsList={lazyLoad ? displayedItems : null}
+          allItemsList={lazyLoad ? propItemsList : null}
           bookTitle={displayTitle}
           bookAuthor={displayAuthor}
           chapterName={displaySubtitle}
@@ -1307,12 +1768,12 @@ export default function TextView({
         onClose={() => setClearAlertState(null)}
         onConfirm={handleConfirmClearAllHighlights}
         title="مسح جميع التظليلات"
-        message="هل أنت متأكد من مسح جميع التظليلات المحفوظة لهذا النص من القرص؟"
+        message={lazyLoad ? 'هل أنت متأكد من مسح جميع التظليلات المحفوظة لهذه الموسوعة من القرص؟' : 'هل أنت متأكد من مسح جميع التظليلات المحفوظة لهذا النص من القرص؟'}
         confirmText="نعم، مسح الكل"
         cancelText="إلغاء"
         confirmIcon={Trash2}
         successTitle="تم المسح بنجاح"
-        successMessage="تم مسح كافة التظليلات لهذا النص بنجاح."
+        successMessage={lazyLoad ? 'تم مسح كافة التظليلات لهذه الموسوعة بنجاح.' : 'تم مسح كافة التظليلات لهذا النص بنجاح.'}
         successButtonText="حسناً"
       />
 

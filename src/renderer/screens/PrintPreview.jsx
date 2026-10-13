@@ -74,12 +74,17 @@ function getPrintSlices(fullText, highlights, includeHighlights) {
 
 export default function PrintPreview({
   hadith,
+  itemsList = null,
+  allItemsList = null,
   bookTitle = 'ديوان الحديث الشريف',
   bookAuthor = '',
   chapterName = '',
   highlights = [],
   onClose
 }) {
+  const isMultiItem = Boolean(itemsList && itemsList.length > 0);
+  const [printScope, setPrintScope] = useState('displayed'); // 'displayed' | 'all'
+
   // Print Customization State
   const [zoomLevel, setZoomLevel] = useState(100); // 80, 100, 120
   const [printFontSize, setPrintFontSize] = useState('medium'); // 'small' (16px), 'medium' (20px), 'large' (24px)
@@ -105,10 +110,62 @@ export default function PrintPreview({
     }
   }, []);
 
-  // Compute text slices with highlights
+  // Effective items depending on printScope
+  const effectiveItems = useMemo(() => {
+    if (!isMultiItem) return [];
+    if (printScope === 'all' && allItemsList && allItemsList.length > 0) {
+      return allItemsList;
+    }
+    return itemsList || [];
+  }, [isMultiItem, printScope, allItemsList, itemsList]);
+
+  // Group highlights by itemId
+  const highlightsByItemId = useMemo(() => {
+    const map = {};
+    for (let i = 0; i < highlights.length; i++) {
+      const h = highlights[i];
+      const key = h.itemId ? String(h.itemId) : 'single';
+      if (!map[key]) map[key] = [];
+      map[key].push(h);
+    }
+    return map;
+  }, [highlights]);
+
+  // Multi-item prepared events with slices
+  const preparedItems = useMemo(() => {
+    if (!isMultiItem || !effectiveItems) return [];
+    return effectiveItems.map((item, idx) => {
+      const itemId = String(item.idInBook || item.id || idx + 1);
+      const itemTitle = item.title || '';
+      const itemText = item.text || item.arabic || '';
+      const itemDates = Array.isArray(item.date) ? item.date : (item.date ? [item.date] : []);
+
+      const itemHls = highlightsByItemId[itemId] || [];
+      const textHls = itemHls.filter((h) => !h.field || h.field === 'text');
+      const titleHls = itemHls.filter((h) => h.field === 'title');
+
+      const textSlices = getPrintSlices(itemText, textHls, includeHighlights);
+      const titleSlices = getPrintSlices(itemTitle, titleHls, includeHighlights);
+
+      return {
+        item,
+        itemId,
+        itemTitle,
+        itemText,
+        itemDates,
+        textSlices,
+        titleSlices,
+        hasHighlights: itemHls.length > 0
+      };
+    });
+  }, [isMultiItem, effectiveItems, highlightsByItemId, includeHighlights]);
+
+  // Single-item slices fallback
   const slices = useMemo(() => {
-    return getPrintSlices(hadith?.arabic || '', highlights, includeHighlights);
-  }, [hadith?.arabic, highlights, includeHighlights]);
+    if (isMultiItem) return [];
+    const singleHls = highlightsByItemId['single'] || highlights;
+    return getPrintSlices(hadith?.arabic || hadith?.text || '', singleHls, includeHighlights);
+  }, [isMultiItem, hadith, highlightsByItemId, highlights, includeHighlights]);
 
   // Font size mapping for preview and print
   const fontSizeStyle = useMemo(() => {
@@ -169,10 +226,10 @@ export default function PrintPreview({
             type="button"
             onClick={onClose}
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition text-xs sm:text-sm font-semibold"
-            title="إغلاق المعاينة والرجوع إلى الحديث الشريف"
+            title="إغلاق المعاينة والرجوع"
           >
             <ArrowRight className="w-4 h-4 text-amber-400" />
-            <span>رجوع للحديث</span>
+            <span>{isMultiItem ? 'رجوع للموسوعة' : 'رجوع للحديث'}</span>
           </button>
 
           <div className="h-5 w-px bg-slate-800 hidden sm:block" />
@@ -180,7 +237,7 @@ export default function PrintPreview({
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-amber-400" />
             <h2 className="text-sm sm:text-base font-bold text-slate-100 font-serif">
-              معاينة الطباعة • {bookTitle} (#{hadith?.idInBook || hadith?.id})
+              معاينة الطباعة • {bookTitle} {isMultiItem ? `(${preparedItems.length} حدث)` : (hadith?.idInBook || hadith?.id ? `(#${hadith?.idInBook || hadith?.id})` : '')}
             </h2>
           </div>
         </div>
@@ -210,7 +267,7 @@ export default function PrintPreview({
             ) : (
               <>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>جاهز للطباعة (Ready)</span>
+                <span>جاهز للطباعة ({isMultiItem ? `${preparedItems.length} حدث` : 'ورقة A4'})</span>
               </>
             )}
           </div>
@@ -231,7 +288,7 @@ export default function PrintPreview({
             ) : (
               <>
                 <Printer className="w-4 h-4 text-white" />
-                <span>طباعة الآن</span>
+                <span>طباعة الآن ({isMultiItem ? `${preparedItems.length} حدث` : 'ورقة A4'})</span>
               </>
             )}
           </button>
@@ -265,6 +322,52 @@ export default function PrintPreview({
               تأكد من اختيار الطابعة المطلوبة من نافذة النظام، وتحديد حجم الورق A4.
             </p>
           </div>
+
+          {/* Multi-Item Print Scope Selector */}
+          {isMultiItem && allItemsList && allItemsList.length > (itemsList?.length || 0) && (
+            <div className="space-y-2">
+              <label className="font-bold text-slate-300 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                <span>نطاق طباعة الأحداث:</span>
+              </label>
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-950 border border-emerald-900/60">
+                <button
+                  type="button"
+                  onClick={() => setPrintScope('displayed')}
+                  className={`py-2 px-2 rounded-lg text-center font-semibold text-xs transition ${
+                    printScope === 'displayed'
+                      ? 'bg-amber-600 text-white shadow font-bold'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  المعروضة ({itemsList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintScope('all')}
+                  className={`py-2 px-2 rounded-lg text-center font-semibold text-xs transition ${
+                    printScope === 'all'
+                      ? 'bg-amber-600 text-white shadow font-bold'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  الكل ({allItemsList.length})
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isMultiItem && (!allItemsList || allItemsList.length <= (itemsList?.length || 0)) && (
+            <div className="p-3 rounded-xl bg-slate-950 border border-emerald-900/60 flex items-center justify-between">
+              <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                <span>أحداث للطباعة:</span>
+              </span>
+              <span className="font-mono text-amber-300 font-bold bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                {preparedItems.length} حدث
+              </span>
+            </div>
+          )}
 
           {/* Font Size Configuration */}
           <div className="space-y-2">
@@ -440,7 +543,7 @@ export default function PrintPreview({
                     className="text-xs sm:text-sm font-serif font-bold flex items-center justify-center gap-2 select-none"
                   >
                     <span>۞</span>
-                    <span>موسوعة الحديث الشريف • نِصاب</span>
+                    <span>{bookTitle ? `${bookTitle} • نِصاب` : 'موسوعة النصوص الشريفة • نِصاب'}</span>
                     <span>۞</span>
                   </div>
                 </div>
@@ -450,7 +553,7 @@ export default function PrintPreview({
               <div className="print-header-banner flex flex-wrap items-center justify-between gap-3 pb-5 mb-6 border-b border-emerald-900/30 text-xs text-slate-700">
                 <div className="flex items-center gap-2.5">
                   <span className="w-8 h-8 rounded-lg bg-emerald-900 text-white flex items-center justify-center font-mono font-bold text-xs">
-                    #{hadith?.idInBook || hadith?.id}
+                    {isMultiItem ? `${preparedItems.length}` : `#${hadith?.idInBook || hadith?.id || '1'}`}
                   </span>
                   <div>
                     <h3
@@ -466,50 +569,137 @@ export default function PrintPreview({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {chapterName && (
+                  {isMultiItem ? (
+                    <div
+                      style={{ color: '#065f46', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                      className="px-3 py-1 rounded-lg border font-serif font-bold text-xs"
+                    >
+                      {preparedItems.length} حدث تاريخي
+                    </div>
+                  ) : chapterName ? (
                     <div
                       style={{ color: '#065f46', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
                       className="px-3 py-1 rounded-lg border font-serif font-bold text-xs"
                     >
                       {chapterName}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
-              {/* Hadith Arabic Text Body */}
-              <div className="print-text-body my-6">
-                <div
-                  style={{
-                    ...fontSizeStyle,
-                    color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a'
-                  }}
-                  className="font-serif text-justify tracking-wide leading-loose break-words [overflow-wrap:anywhere]"
-                >
-                  <span style={{ color: '#065f46' }} className="font-serif text-2xl font-bold inline-block ml-1 select-none">
-                    «
-                  </span>
+              {/* Arabic Text Body: Either Multi-Item Continuous Document Flow OR Single Text */}
+              {isMultiItem ? (
+                /* Multi-Item Continuous Document Flow (Islamic History, Articles, etc.) */
+                <div className="print-text-body space-y-8 my-6">
+                  {preparedItems.map((pItem) => (
+                    <div
+                      key={pItem.itemId}
+                      className="event-print-card pt-6 first:pt-0 border-t border-emerald-900/20 first:border-t-0 text-right"
+                    >
+                      {/* Event Header */}
+                      <div className="event-print-header flex flex-wrap items-center gap-2 mb-3 pb-2 border-b border-emerald-900/20 text-xs">
+                        <span className="font-mono font-bold px-2 py-0.5 rounded bg-emerald-900 text-white text-[11px]">
+                          #{pItem.itemId}
+                        </span>
+                        {pItem.itemTitle && (
+                          <h4
+                            style={{ color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a' }}
+                            className="text-base font-serif font-bold inline-block"
+                          >
+                            {pItem.titleSlices.map((slice, sIdx) => {
+                              if (slice.isHighlight) {
+                                const colorClass =
+                                  HIGHLIGHT_PRINT_COLORS[slice.color] || HIGHLIGHT_PRINT_COLORS.amber;
+                                return (
+                                  <mark
+                                    key={`title-hl-${sIdx}`}
+                                    className={`${colorClass} px-1 py-0.5 rounded inline transition-none font-serif`}
+                                  >
+                                    {slice.text}
+                                  </mark>
+                                );
+                              }
+                              return <span key={`title-plain-${sIdx}`}>{slice.text}</span>;
+                            })}
+                          </h4>
+                        )}
+                        {pItem.itemDates.length > 0 && (
+                          <div className="flex items-center gap-1.5 mr-auto">
+                            {pItem.itemDates.map((dt, dIdx) => (
+                              <span
+                                key={dIdx}
+                                style={{ color: '#065f46' }}
+                                className="px-2 py-0.5 rounded bg-emerald-50 text-[10px] font-mono border border-emerald-200"
+                              >
+                                {dt}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
 
-                  {slices.map((slice, sIdx) => {
-                    if (slice.isHighlight) {
-                      const colorClass = HIGHLIGHT_PRINT_COLORS[slice.color] || HIGHLIGHT_PRINT_COLORS.amber;
-                      return (
-                        <mark
-                          key={`slice-print-${sIdx}`}
-                          className={`${colorClass} px-1 py-0.5 rounded inline transition-none font-serif`}
-                        >
-                          {slice.text}
-                        </mark>
-                      );
-                    }
-                    return <span key={`slice-plain-${sIdx}`}>{slice.text}</span>;
-                  })}
-
-                  <span style={{ color: '#065f46' }} className="font-serif text-2xl font-bold inline-block mr-1 select-none">
-                    »
-                  </span>
+                      {/* Event Narrative Body */}
+                      <div
+                        style={{
+                          ...fontSizeStyle,
+                          color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a'
+                        }}
+                        className="font-serif text-justify tracking-wide leading-loose break-words [overflow-wrap:anywhere]"
+                      >
+                        {pItem.textSlices.map((slice, sIdx) => {
+                          if (slice.isHighlight) {
+                            const colorClass =
+                              HIGHLIGHT_PRINT_COLORS[slice.color] || HIGHLIGHT_PRINT_COLORS.amber;
+                            return (
+                              <mark
+                                key={`text-hl-${sIdx}`}
+                                className={`${colorClass} px-1 py-0.5 rounded inline transition-none font-serif`}
+                              >
+                                {slice.text}
+                              </mark>
+                            );
+                          }
+                          return <span key={`text-plain-${sIdx}`}>{slice.text}</span>;
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                /* Single Hadith Arabic Text Body */
+                <div className="print-text-body my-6">
+                  <div
+                    style={{
+                      ...fontSizeStyle,
+                      color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a'
+                    }}
+                    className="font-serif text-justify tracking-wide leading-loose break-words [overflow-wrap:anywhere]"
+                  >
+                    <span style={{ color: '#065f46' }} className="font-serif text-2xl font-bold inline-block ml-1 select-none">
+                      «
+                    </span>
+
+                    {slices.map((slice, sIdx) => {
+                      if (slice.isHighlight) {
+                        const colorClass = HIGHLIGHT_PRINT_COLORS[slice.color] || HIGHLIGHT_PRINT_COLORS.amber;
+                        return (
+                          <mark
+                            key={`slice-print-${sIdx}`}
+                            className={`${colorClass} px-1 py-0.5 rounded inline transition-none font-serif`}
+                          >
+                            {slice.text}
+                          </mark>
+                        );
+                      }
+                      return <span key={`slice-plain-${sIdx}`}>{slice.text}</span>;
+                    })}
+
+                    <span style={{ color: '#065f46' }} className="font-serif text-2xl font-bold inline-block mr-1 select-none">
+                      »
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Document Attribution and Footer */}
               {includeFooter && (
@@ -519,7 +709,9 @@ export default function PrintPreview({
                 >
                   <div className="flex items-center gap-2">
                     <span style={{ color: '#065f46' }} className="font-bold">المصدر:</span>
-                    <span style={{ color: '#334155' }}>{bookTitle} ({bookAuthor || 'الحديث الشريف'})</span>
+                    <span style={{ color: '#334155' }}>
+                      {bookTitle} ({bookAuthor || (isMultiItem ? 'التاريخ الإسلامي' : 'الحديث الشريف')})
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-3">
