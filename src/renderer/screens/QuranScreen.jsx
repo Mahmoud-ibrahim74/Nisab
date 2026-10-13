@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import MiniLoader from '../components/MiniLoader';
+import BookView, { playRealPageFlipSound } from '../components/BookView';
 import { normalizeArabic, findArabicMatches } from '../../utils/arabicNormalizer';
 
 // Convert number to Eastern Arabic numerals (١، ٢، ٣...)
@@ -397,107 +398,20 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
     };
   }, [containerSize]);
 
-  // Physical Paper Flip Sound Synthesizer (Realistic soft paper rustle via Web Audio API)
-  const playPageFlipSound = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const bufferSize = Math.floor(ctx.sampleRate * 0.13);
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.035));
-      }
-      const noise = ctx.createBufferSource();
-      noise.buffer = buffer;
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(1350, ctx.currentTime);
-      filter.Q.setValueAtTime(1.1, ctx.currentTime);
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.13);
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
-      noise.start();
-    } catch (e) {}
-  }, []);
-
-  // 3D Realistic Physical Page Turn Variants
-  const rightPageVariants = {
-    initial: (dir) => ({
-      rotateY: dir === 'next' ? 30 : -45,
-      opacity: 0.6,
-      scale: 0.98,
-      filter: 'brightness(0.92)'
-    }),
-    animate: {
-      rotateY: 0,
-      opacity: 1,
-      scale: 1,
-      filter: 'brightness(1)',
-      transition: {
-        duration: 0.52,
-        ease: [0.22, 1, 0.36, 1]
-      }
-    },
-    exit: (dir) => ({
-      rotateY: dir === 'next' ? -50 : 30,
-      opacity: 0,
-      scale: 0.98,
-      filter: 'brightness(0.85)',
-      transition: {
-        duration: 0.42,
-        ease: [0.4, 0, 0.7, 0.2]
-      }
-    })
-  };
-
-  const leftPageVariants = {
-    initial: (dir) => ({
-      rotateY: dir === 'next' ? -45 : 30,
-      opacity: 0.6,
-      scale: 0.98,
-      filter: 'brightness(0.92)'
-    }),
-    animate: {
-      rotateY: 0,
-      opacity: 1,
-      scale: 1,
-      filter: 'brightness(1)',
-      transition: {
-        duration: 0.52,
-        ease: [0.22, 1, 0.36, 1]
-      }
-    },
-    exit: (dir) => ({
-      rotateY: dir === 'next' ? 30 : -50,
-      opacity: 0,
-      scale: 0.98,
-      filter: 'brightness(0.85)',
-      transition: {
-        duration: 0.42,
-        ease: [0.4, 0, 0.7, 0.2]
-      }
-    })
-  };
-
   // Sync last visited page to localStorage with realistic paper flip motion
   const jumpToPage = useCallback(
-    (pageNum, direction = null) => {
+    (pageNum, direction = null, playSound = true) => {
       const valid = Math.max(1, Math.min(604, pageNum));
       if (valid !== currentPage) {
         setTurnDirection(direction || (valid > currentPage ? 'next' : 'prev'));
-        playPageFlipSound();
+        if (playSound) playRealPageFlipSound();
         setCurrentPage(valid);
         try {
           localStorage.setItem('nisab_mushaf_last_page', String(valid));
         } catch (e) {}
       }
     },
-    [currentPage, playPageFlipSound]
+    [currentPage]
   );
 
   // Calculate Starting Pages for each of 114 Surahs
@@ -530,52 +444,7 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
     return map;
   }, [pagesMap]);
 
-  // Open Book Spread: Right Page (Odd) & Left Page (Even)
-  // For spread 0: Page 1 (Right) and Page 2 (Left)
-  const { rightPageNum, leftPageNum } = useMemo(() => {
-    if (currentPage % 2 !== 0) {
-      // Current page is odd: Right is currentPage, Left is currentPage + 1
-      return {
-        rightPageNum: currentPage,
-        leftPageNum: Math.min(604, currentPage + 1)
-      };
-    } else {
-      // Current page is even: Right is currentPage - 1, Left is currentPage
-      return {
-        rightPageNum: Math.max(1, currentPage - 1),
-        leftPageNum: currentPage
-      };
-    }
-  }, [currentPage]);
 
-  // Navigation: Turn Spreads (In RTL Quran, Next goes to higher page numbers)
-  const handleNextSpread = () => {
-    if (leftPageNum < 604) {
-      jumpToPage(leftPageNum + 1, 'next');
-    }
-  };
-
-  const handlePrevSpread = () => {
-    if (rightPageNum > 1) {
-      jumpToPage(rightPageNum - 2, 'prev');
-    }
-  };
-
-  // Keyboard navigation (ArrowLeft = Next spread, ArrowRight = Previous spread)
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Ignore if typing in input
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-      if (e.key === 'ArrowLeft') {
-        handleNextSpread();
-      } else if (e.key === 'ArrowRight') {
-        handlePrevSpread();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  });
 
   // Bookmark Toggle
   const handleToggleBookmark = () => {
@@ -1290,140 +1159,19 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
         </div>
       </header>
 
-      {/* Main Standard Mushaf Reader (604 Pages / Standard Aspect Ratio Book) */}
-      <main
-        ref={mainContainerRef}
-        className="relative flex-1 w-full max-w-[1700px] mx-auto p-2 sm:p-4 flex items-center justify-center overflow-hidden"
-      >
-        {loading ? (
-          <div className="text-center py-24 text-amber-400">
-            <Sparkles className="w-10 h-10 animate-spin mx-auto mb-3" />
-            <div className="font-serif text-lg">جاري فتح المصحف الشريف...</div>
-          </div>
-        ) : (
-          <div className="relative w-full h-full flex items-center justify-center">
-            {/* Previous Spread Turn Button (Right Side in RTL) */}
-            <motion.button
-              whileHover={{ scale: 1.15, x: 3 }}
-              whileTap={{ scale: 0.9, x: -1 }}
-              onClick={handlePrevSpread}
-              disabled={rightPageNum <= 1}
-              className="absolute right-0 sm:right-2 z-30 p-2.5 sm:p-3.5 rounded-full bg-slate-900/90 hover:bg-emerald-950 border border-amber-500/50 text-amber-300 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all shadow-2xl backdrop-blur-md flex items-center justify-center group"
-              title="الصفحة السابقة (تقليب الورقة بالسهم)"
-            >
-              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110" />
-            </motion.button>
-
-            {/* The Realistic Open Mushaf Book (كتاب مفتوح ذو ارتفاع مصحف قياسي) */}
-            <div
-              style={{
-                aspectRatio: '1.41 / 1',
-                maxHeight: '100%',
-                maxWidth: '100%',
-                perspective: '2200px'
-              }}
-              className={`relative h-full flex rounded-3xl border-[6px] sm:border-[8px] ${themeClasses.bookBorder} overflow-hidden shadow-2xl transition-all mx-auto`}
-            >
-              {/* Right Page (Odd numbers: 1, 3, 5...) with 3D Page Turn */}
-              <div className="flex-1 h-full relative overflow-hidden" style={{ perspective: '1800px' }}>
-                <AnimatePresence mode="popLayout" custom={turnDirection}>
-                  <motion.div
-                    key={`page-right-${rightPageNum}`}
-                    custom={turnDirection}
-                    variants={rightPageVariants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      transformOrigin: 'left center',
-                      transformStyle: 'preserve-3d'
-                    }}
-                  >
-                    {renderMushafPage(rightPageNum, 'right')}
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-
-              {/* Central Spine 3D Crease Shadow (طية كعب المصحف المفتوح) */}
-              <div
-                className={`w-3 sm:w-5 h-full shrink-0 bg-gradient-to-r ${themeClasses.spineGradient} shadow-inner pointer-events-none z-20`}
-              />
-
-              {/* Central Spine Silk Ribbon Bookmark (فاصل المصحف الشريف الحريري الأحمر المتدلي بين فاصل الصفحتين من أعلى) */}
-              {bookmarkPage && (bookmarkPage === rightPageNum || bookmarkPage === leftPageNum) && (
-                <div
-                  style={{
-                    background: 'linear-gradient(180deg, #7f1d1d 0%, #991b1b 15%, #dc2626 50%, #b91c1c 80%, #7f1d1d 100%)',
-                    clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 50% calc(100% - 12px), 0% 100%)',
-                    filter: 'drop-shadow(0 6px 14px rgba(0, 0, 0, 0.65)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4))'
-                  }}
-                  className="absolute top-0 left-1/2 -translate-x-1/2 z-30 w-7 sm:w-8 h-24 sm:h-28 flex flex-col items-center justify-between pt-1 pb-3 text-white font-bold select-none cursor-pointer transition-transform hover:scale-105 active:scale-95"
-                  title={`علامة القراءة المحفوظة (صفحة ${toEasternArabic(bookmarkPage)}) - انقر للإزالة`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleBookmark();
-                  }}
-                >
-                  {/* Top spine crease & gold stitch */}
-                  <div className="w-full flex flex-col items-center">
-                    <div className="w-full h-1 bg-black/40" />
-                    <div className="w-4/5 h-[1px] bg-amber-300/70 mt-0.5" />
-                  </div>
-
-                  {/* Middle Golden Medallion */}
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-4.5 h-4.5 rounded-full bg-black/25 border border-amber-300/75 flex items-center justify-center shadow-inner">
-                      <Bookmark className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
-                    </div>
-                    <span className="text-[8px] sm:text-[9px] font-serif font-bold text-amber-200 select-none">
-                      ص {toEasternArabic(bookmarkPage)}
-                    </span>
-                  </div>
-
-                  {/* Bottom Golden Stitch before the chevron notch */}
-                  <div className="w-3/5 h-[1px] bg-amber-300/70 rounded-full mb-0.5" />
-                </div>
-              )}
-
-              {/* Left Page (Even numbers: 2, 4, 6...) with 3D Page Turn */}
-              <div className="flex-1 h-full relative overflow-hidden" style={{ perspective: '1800px' }}>
-                <AnimatePresence mode="popLayout" custom={turnDirection}>
-                  <motion.div
-                    key={`page-left-${leftPageNum}`}
-                    custom={turnDirection}
-                    variants={leftPageVariants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      transformOrigin: 'right center',
-                      transformStyle: 'preserve-3d'
-                    }}
-                  >
-                    {renderMushafPage(leftPageNum, 'left')}
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-            </div>
-
-            {/* Next Spread Turn Button (Left Side in RTL) */}
-            <motion.button
-              whileHover={{ scale: 1.15, x: -3 }}
-              whileTap={{ scale: 0.9, x: 1 }}
-              onClick={handleNextSpread}
-              disabled={leftPageNum >= 604}
-              className="absolute left-0 sm:left-2 z-30 p-2.5 sm:p-3.5 rounded-full bg-slate-900/90 hover:bg-emerald-950 border border-amber-500/50 text-amber-300 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all shadow-2xl backdrop-blur-md flex items-center justify-center group"
-              title="الصفحة التالية (تقليب الورقة بالسهم)"
-            >
-              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110" />
-            </motion.button>
-          </div>
-        )}
-      </main>
+      {/* BookView Reader (Dual-Page Open Book with 3D Page Flip Animation) */}
+      <BookView
+        totalPages={604}
+        currentPage={currentPage}
+        onPageChange={(newPage, dir) => jumpToPage(newPage, dir, false)}
+        renderPage={(pageNum, side) => renderMushafPage(pageNum, side)}
+        loading={loading}
+        loadingMessage="جاري فتح المصحف الشريف..."
+        theme={themeClasses}
+        bookmarkPage={bookmarkPage}
+        onToggleBookmark={handleToggleBookmark}
+        containerRef={mainContainerRef}
+      />
 
       {/* Floating Selected Ayah Action Pill */}
       <AnimatePresence>

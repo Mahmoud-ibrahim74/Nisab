@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import SwitchToggle from '../components/SwitchToggle';
+import WarningAlert from '../components/WarningAlert';
 import { notificationManager } from '../services/NotificationManager';
 
 // AlAdhan API Calculation Method IDs Mapping
@@ -841,113 +842,12 @@ export default function SettingsScreen() {
         </div>
       </div>
 
-      {/* Custom Reset Alert Modal with Amazing UI/UX */}
-      <AnimatePresence>
-        {resetModalState && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-            {/* Backdrop click dismiss */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => resetModalState === 'confirm' && setResetModalState(null)}
-              className="absolute inset-0"
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className={`relative z-10 w-full max-w-md p-6 sm:p-8 rounded-3xl border shadow-2xl backdrop-blur-xl text-center overflow-hidden ${
-                resetModalState === 'confirm'
-                  ? 'bg-slate-900/95 border-rose-500/40 shadow-rose-950/50'
-                  : 'bg-slate-900/95 border-emerald-500/40 shadow-emerald-950/50'
-              }`}
-            >
-              <ArabesquePattern className="opacity-5 text-amber-400" />
-
-              {/* Close X Button */}
-              <button
-                type="button"
-                onClick={() => setResetModalState(null)}
-                className="absolute top-4 left-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                title="إغلاق"
-              >
-                <X className="w-4 h-4" />
-              </button>
-
-              {resetModalState === 'confirm' ? (
-                <div className="space-y-5">
-                  {/* Glowing Icon Badge */}
-                  <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-2xl bg-rose-500/20 animate-ping opacity-30" />
-                    <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-500/20 to-rose-600/10 border border-rose-500/40 flex items-center justify-center text-rose-400 shadow-inner">
-                      <AlertTriangle className="w-8 h-8 text-rose-400" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-white font-serif">
-                      استعادة الإعدادات الافتراضية
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xs mx-auto">
-                      هل أنت متأكد من استعادة كافة الإعدادات إلى وضعها الافتراضي ومسح الذاكرة المؤقتة بالكامل؟
-                    </p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setResetModalState(null)}
-                      className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs sm:text-sm transition border border-slate-700/60"
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleExecuteReset}
-                      className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-xs sm:text-sm transition shadow-lg shadow-rose-900/40 border border-rose-400/30 flex items-center justify-center gap-2 active:scale-95"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      <span>نعم، استعادة</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  {/* Success Icon Badge */}
-                  <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
-                    <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-inner">
-                      <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-white font-serif">
-                      تمت الاستعادة بنجاح
-                    </h3>
-                    <p className="text-xs sm:text-sm text-emerald-200/90 leading-relaxed max-w-xs mx-auto">
-                      تمت استعادة كافة إعدادات التطبيق إلى حالتها الافتراضية ومسح الذاكرة المؤقتة بنجاح.
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setResetModalState(null)}
-                      className="w-full py-2.5 px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold text-xs sm:text-sm transition shadow-lg shadow-emerald-900/40 border border-emerald-400/30 active:scale-95"
-                    >
-                      حسناً
-                    </button>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Reusable WarningAlert Component */}
+      <WarningAlert
+        state={resetModalState}
+        onClose={() => setResetModalState(null)}
+        onConfirm={handleExecuteReset}
+      />
     </div>
   );
 }

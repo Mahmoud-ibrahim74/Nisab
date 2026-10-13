@@ -112,9 +112,9 @@ function registerIpcHandlers(resourcesDir) {
     return JSON.parse(data);
   });
 
-  // 6. Get offline audio path (azan.mp3, reminder.mp3, rattil.mp3)
+  // 6. Get offline audio path (azan.mp3, reminder.mp3, rattil.mp3, page-flip.mp3)
   ipcMain.handle('audio:getOfflineAudio', async (event, soundName) => {
-    const allowed = ['azan.mp3', 'reminder.mp3', 'rattil.mp3'];
+    const allowed = ['azan.mp3', 'reminder.mp3', 'rattil.mp3', 'page-flip.mp3'];
     if (!allowed.includes(soundName)) {
       throw new Error('Invalid sound file requested');
     }

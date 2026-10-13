@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import Loader from '../components/Loader';
+import WarningAlert from '../components/WarningAlert';
 import {
   loadQuizzesData,
   getRandomQuestion,
@@ -61,6 +62,7 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(getQuizStats());
   const [bookmarks, setBookmarks] = useState(getBookmarks());
+  const [alertConfig, setAlertConfig] = useState(null);
 
   // Screen Tabs: 'categories' | 'challenge' | 'search' | 'bookmarks' | 'activeQuiz' | 'quizFinished'
   const [activeTab, setActiveTab] = useState('categories');
@@ -81,6 +83,7 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
   const [selectedAnswerIndex, setSelectedAnswerIndex] = useState(null);
   const [hasAnswered, setHasAnswered] = useState(false);
   const [sessionAnswers, setSessionAnswers] = useState([]); // Array of { question, selectedIdx, isCorrect }
+  const [answeredMap, setAnsweredMap] = useState({}); // { [questionIndex]: { selectedIdx, isCorrect } }
   const [quizSessionMeta, setQuizSessionMeta] = useState({ title: '', categoryName: '' });
 
   // Question Bank & Search State
@@ -130,6 +133,7 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
         setSelectedAnswerIndex(null);
         setHasAnswered(false);
         setSessionAnswers([]);
+        setAnsweredMap({});
         setQuizSessionMeta({
           title: `${topic.name} - ${LEVEL_METADATA[levelKey]?.name || levelKey}`,
           categoryName: category.arabicName,
@@ -160,6 +164,7 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
         setSelectedAnswerIndex(null);
         setHasAnswered(false);
         setSessionAnswers([]);
+        setAnsweredMap({});
         setQuizSessionMeta({
           title: `تحدي المعرفة السريع (${questions.length} سؤالاً)`,
           categoryName: challengeCategory === 'all' ? 'جميع الأقسام' : CATEGORY_THEMES[challengeCategory]?.name,
@@ -187,14 +192,24 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
     setSelectedAnswerIndex(index);
     setHasAnswered(true);
 
-    // Save to session history
-    const record = {
-      question: currentQuestion,
-      selectedAnswerIndex: index,
-      isCorrect,
-      correctAnswerText: currentQuestion.shuffledAnswers.find((a) => a.t === 1)?.answer || ''
-    };
-    setSessionAnswers((prev) => [...prev, record]);
+    // Save to per-question answer map for navigation persistence
+    setAnsweredMap((prev) => ({
+      ...prev,
+      [currentQIndex]: { selectedIdx: index, isCorrect }
+    }));
+
+    // Save to session history (only if not already recorded for this question)
+    setSessionAnswers((prev) => {
+      const alreadyRecorded = prev.some((r) => r.questionIndex === currentQIndex);
+      if (alreadyRecorded) return prev;
+      return [...prev, {
+        questionIndex: currentQIndex,
+        question: currentQuestion,
+        selectedAnswerIndex: index,
+        isCorrect,
+        correctAnswerText: currentQuestion.shuffledAnswers.find((a) => a.t === 1)?.answer || ''
+      }];
+    });
 
     // Record to global persistence
     recordQuizAnswer(isCorrect, currentQuestion.categoryId);
@@ -204,11 +219,31 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
   // Move to Next Question or Finish Quiz
   const handleNextQuestion = () => {
     if (currentQIndex + 1 < quizQuestions.length) {
-      setCurrentQIndex((prev) => prev + 1);
-      setSelectedAnswerIndex(null);
-      setHasAnswered(false);
+      const nextIdx = currentQIndex + 1;
+      setCurrentQIndex(nextIdx);
+      // Restore saved answer state if the next question was already answered
+      const saved = answeredMap[nextIdx];
+      if (saved) {
+        setSelectedAnswerIndex(saved.selectedIdx);
+        setHasAnswered(true);
+      } else {
+        setSelectedAnswerIndex(null);
+        setHasAnswered(false);
+      }
     } else {
-      // Quiz Finished
+      // Quiz Finished — build ordered sessionAnswers from answeredMap
+      const orderedAnswers = quizQuestions.map((q, idx) => {
+        const ans = answeredMap[idx];
+        if (!ans) return null;
+        return {
+          questionIndex: idx,
+          question: q,
+          selectedAnswerIndex: ans.selectedIdx,
+          isCorrect: ans.isCorrect,
+          correctAnswerText: q.shuffledAnswers.find((a) => a.t === 1)?.answer || ''
+        };
+      }).filter(Boolean);
+      setSessionAnswers(orderedAnswers);
       recordQuizSessionFinish();
       refreshStatsAndBookmarks();
       setActiveTab('quizFinished');
@@ -302,7 +337,7 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
       <ArabesquePattern />
 
       {/* Main Container */}
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 flex flex-col gap-6">
+      <div className="relative z-10 w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 flex flex-col gap-6">
 
         {/* 1. Header Banner */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-emerald-900/40">
@@ -350,6 +385,35 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
               <span>المحفوظة:</span>
               <span className="font-mono font-bold text-sky-300">{bookmarks.length}</span>
             </div>
+
+            {stats.totalAnswered > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAlertConfig({
+                    title: 'إعادة تصفير إحصائيات المسابقات',
+                    message: 'هل أنت متأكد من تصفير إحصائيات الأسئلة المجابة ونسبة الإنجاز والبدء من جديد؟',
+                    confirmText: 'نعم، تصفير الإحصائيات',
+                    cancelText: 'إلغاء',
+                    confirmIcon: RotateCcw,
+                    onConfirm: () => {
+                      localStorage.removeItem('nisab_islamic_quizzes_stats');
+                      refreshStatsAndBookmarks();
+                      setAlertConfig({
+                        state: 'success',
+                        successTitle: 'تم التصفير بنجاح',
+                        successMessage: 'تمت إعادة تعيين إحصائيات المسابقات بنجاح والبدء بسجل جديد.'
+                      });
+                    }
+                  });
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-rose-950/50 border border-emerald-900/60 hover:border-rose-800/60 text-slate-400 hover:text-rose-300 transition"
+                title="تصفير إحصائيات المسابقات"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>تصفير</span>
+              </button>
+            )}
           </div>
         </header>
 
@@ -590,7 +654,7 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
 
         {/* 4. TAB CONTENT: QUICK CHALLENGE */}
         {activeTab === 'challenge' && (
-          <div className="max-w-2xl mx-auto w-full flex flex-col gap-6">
+          <div className="w-full flex flex-col gap-6">
             <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-b from-slate-900 via-emerald-950/50 to-slate-900 border border-emerald-800/60 shadow-2xl">
               <div className="text-center pb-6 border-b border-emerald-900/40">
                 <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shadow-lg">
@@ -637,7 +701,7 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
                         className={`p-2.5 rounded-xl text-xs font-bold transition border ${
                           challengeLevel === lvl.key
                             ? 'bg-emerald-800 text-amber-300 border-amber-400 shadow'
-                            : 'bg-slate-950 text-slate-400 border-emerald-950 hover:bg-slate-900'
+                            : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
                         }`}
                       >
                         {lvl.label}
@@ -657,8 +721,8 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
                         onClick={() => setChallengeCount(num)}
                         className={`p-2.5 rounded-xl text-xs font-bold font-mono transition border ${
                           challengeCount === num
-                            ? 'bg-amber-500/20 text-amber-300 border-amber-400 shadow'
-                            : 'bg-slate-950 text-slate-400 border-emerald-950 hover:bg-slate-900'
+                            ? 'bg-amber-600 text-amber-100 border-amber-300 shadow'
+                            : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
                         }`}
                       >
                         {num} أسئلة
@@ -670,7 +734,7 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
                 {/* Start Challenge Button */}
                 <button
                   onClick={startQuickChallenge}
-                  className="mt-4 w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-base shadow-xl flex items-center justify-center gap-2 transition hover:scale-[1.01]"
+                  className="mt-4 w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-extrabold text-base shadow-xl flex items-center justify-center gap-2 transition hover:scale-[1.02]"
                 >
                   <Play className="w-5 h-5 fill-slate-950" />
                   <span>بدء التحدي الآن</span>
@@ -850,9 +914,24 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
               </h2>
               {bookmarks.length > 0 && (
                 <button
+                  type="button"
                   onClick={() => {
-                    localStorage.removeItem('nisab_islamic_quizzes_bookmarks');
-                    setBookmarks([]);
+                    setAlertConfig({
+                      title: 'مسح جميع الأسئلة المحفوظة',
+                      message: 'هل أنت متأكد من حذف جميع الأسئلة المحفوظة من قائمتك؟ لا يمكن التراجع عن هذا الإجراء.',
+                      confirmText: 'نعم، مسح الكل',
+                      cancelText: 'إلغاء',
+                      confirmIcon: X,
+                      onConfirm: () => {
+                        localStorage.removeItem('nisab_islamic_quizzes_bookmarks');
+                        setBookmarks([]);
+                        setAlertConfig({
+                          state: 'success',
+                          successTitle: 'تم مسح المحفوظات',
+                          successMessage: 'تم حذف جميع الأسئلة المحفوظة بنجاح من قائمة المراجعة.'
+                        });
+                      }
+                    });
                   }}
                   className="text-xs text-rose-400 hover:text-rose-300 transition"
                 >
@@ -929,14 +1008,23 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
 
         {/* 7. TAB CONTENT: ACTIVE QUIZ PLAYER */}
         {activeTab === 'activeQuiz' && quizQuestions.length > 0 && (
-          <div className="max-w-3xl mx-auto w-full flex flex-col gap-5">
+          <div className="mx-auto w-full flex flex-col gap-5">
             {/* Quiz Top Navigation Bar */}
             <div className="p-4 rounded-2xl bg-slate-900/90 border border-emerald-900/60 flex items-center justify-between">
               <button
+                type="button"
                 onClick={() => {
-                  if (window.confirm('هل تريد إنهاء الاختبار والعودة للقائمة الرئيسية؟')) {
-                    setActiveTab('categories');
-                  }
+                  setAlertConfig({
+                    title: 'إنهاء الاختبار والعودة',
+                    message: 'هل أنت متأكد من إنهاء جلسة الاختبار والعودة؟ سيتم فقدان التقدم الحالي في هذه الجلسة.',
+                    confirmText: 'نعم، إنهاء الاختبار',
+                    cancelText: 'متابعة الاختبار',
+                    confirmIcon: ArrowRight,
+                    onConfirm: () => {
+                      setActiveTab('categories');
+                      setAlertConfig(null);
+                    }
+                  });
                 }}
                 className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-amber-300 transition"
               >
@@ -1099,12 +1187,75 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
                 </motion.div>
               );
             })()}
+
+            {/* Prev / Next Navigation Buttons */}
+            <div className="flex items-center justify-between gap-3 mt-2">
+              <button
+                type="button"
+                disabled={currentQIndex <= 0}
+                onClick={() => {
+                  const prevIdx = Math.max(0, currentQIndex - 1);
+                  setCurrentQIndex(prevIdx);
+                  // Restore saved answer state for the previous question
+                  const saved = answeredMap[prevIdx];
+                  if (saved) {
+                    setSelectedAnswerIndex(saved.selectedIdx);
+                    setHasAnswered(true);
+                  } else {
+                    setSelectedAnswerIndex(null);
+                    setHasAnswered(false);
+                  }
+                }}
+                className={`flex-1 py-3 px-5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition border ${
+                  currentQIndex <= 0
+                    ? 'opacity-40 cursor-not-allowed bg-slate-900 border-slate-800 text-slate-500'
+                    : 'bg-slate-800 border-emerald-900/60 text-slate-200 hover:bg-slate-700 hover:border-amber-400/60'
+                }`}
+              >
+                <ChevronRight className="w-4 h-4" />
+                <span>السؤال السابق</span>
+              </button>
+
+              <span className="text-xs font-mono text-slate-500 whitespace-nowrap">
+                {currentQIndex + 1} / {quizQuestions.length}
+              </span>
+
+              <button
+                type="button"
+                disabled={currentQIndex >= quizQuestions.length - 1}
+                onClick={() => {
+                  if (hasAnswered) {
+                    handleNextQuestion();
+                  } else {
+                    const nextIdx = Math.min(quizQuestions.length - 1, currentQIndex + 1);
+                    setCurrentQIndex(nextIdx);
+                    // Restore saved answer state for the next question
+                    const saved = answeredMap[nextIdx];
+                    if (saved) {
+                      setSelectedAnswerIndex(saved.selectedIdx);
+                      setHasAnswered(true);
+                    } else {
+                      setSelectedAnswerIndex(null);
+                      setHasAnswered(false);
+                    }
+                  }
+                }}
+                className={`flex-1 py-3 px-5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition border ${
+                  currentQIndex >= quizQuestions.length - 1
+                    ? 'opacity-40 cursor-not-allowed bg-slate-900 border-slate-800 text-slate-500'
+                    : 'bg-slate-800 border-emerald-900/60 text-slate-200 hover:bg-slate-700 hover:border-amber-400/60'
+                }`}
+              >
+                <span>السؤال التالي</span>
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
 
         {/* 8. TAB CONTENT: QUIZ COMPLETED SCREEN */}
         {activeTab === 'quizFinished' && (
-          <div className="max-w-2xl mx-auto w-full flex flex-col gap-6">
+          <div className="w-full flex flex-col gap-6">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1149,6 +1300,7 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
                     setSelectedAnswerIndex(null);
                     setHasAnswered(false);
                     setSessionAnswers([]);
+                    setAnsweredMap({});
                     setActiveTab('activeQuiz');
                   }}
                   className="w-full sm:w-auto py-3 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold flex items-center justify-center gap-2 transition"
@@ -1212,6 +1364,23 @@ export default function IslamicQuizzesScreen({ onNavigate }) {
         )}
 
       </div>
+
+      {/* Reusable WarningAlert Component */}
+      {alertConfig && (
+        <WarningAlert
+          isOpen={Boolean(alertConfig)}
+          state={alertConfig.state || 'confirm'}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          confirmText={alertConfig.confirmText}
+          cancelText={alertConfig.cancelText}
+          confirmIcon={alertConfig.confirmIcon}
+          successTitle={alertConfig.successTitle}
+          successMessage={alertConfig.successMessage}
+          onConfirm={alertConfig.onConfirm}
+          onClose={() => setAlertConfig(null)}
+        />
+      )}
     </div>
   );
 }
