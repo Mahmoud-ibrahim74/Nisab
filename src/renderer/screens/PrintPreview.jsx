@@ -20,6 +20,7 @@ import {
 import MiniLoader from '../components/MiniLoader';
 import SwitchToggle from '../components/SwitchToggle';
 import ArabesquePattern from '../components/ArabesquePattern';
+import appIcon from '../../assets/icon.png';
 
 // Available Highlighter Color Styles for Print
 const HIGHLIGHT_PRINT_COLORS = {
@@ -92,6 +93,7 @@ export default function PrintPreview({
   const [paperStyle, setPaperStyle] = useState('white'); // 'white' | 'parchment'
   const [includeIslamicHeader, setIncludeIslamicHeader] = useState(true);
   const [includeFooter, setIncludeFooter] = useState(true);
+  const [includeWatermark, setIncludeWatermark] = useState(true);
 
   // Printing Lifecycle Status: 'ready' | 'printing' | 'completed'
   const [printStatus, setPrintStatus] = useState('ready');
@@ -473,6 +475,19 @@ export default function PrintPreview({
                 ariaLabel="إدراج حاشية التوثيق والتاريخ"
               />
             </div>
+
+            <div className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 border border-emerald-900/40">
+              <div>
+                <div className="font-semibold text-slate-200">العلامة المائية (شعار نِصاب)</div>
+                <div className="text-[10px] text-slate-400">إدراج شعار التطبيق كعلامة مائية خفيفة في خلفية الورقة</div>
+              </div>
+              <SwitchToggle
+                id="toggle-print-watermark"
+                checked={includeWatermark}
+                onChange={setIncludeWatermark}
+                ariaLabel="إدراج العلامة المائية لشعار نِصاب"
+              />
+            </div>
           </div>
 
           {/* Zoom Controls */}
@@ -523,15 +538,34 @@ export default function PrintPreview({
                 color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a',
                 backgroundColor: paperStyle === 'parchment' ? '#fbf7ee' : '#ffffff'
               }}
-              className={`printable-hadith-card relative w-full rounded-2xl border-2 p-8 sm:p-12 shadow-2xl transition-colors min-h-[900px] ${
+              className={`printable-hadith-card relative w-full rounded-2xl border-2 p-8 sm:p-12 shadow-2xl transition-colors min-h-[900px] overflow-hidden ${
                 paperStyle === 'parchment'
                   ? 'border-[#c59b27]/70'
                   : 'border-emerald-900'
               }`}
             >
+              {/* Static Nisab Watermark Background */}
+              {includeWatermark && (
+                <div
+                  aria-hidden="true"
+                  className="print-watermark absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0 overflow-hidden"
+                >
+                  <img
+                    src={appIcon}
+                    alt="Nisab Watermark"
+                    className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain opacity-[0.045] grayscale contrast-125 filter pointer-events-none select-none"
+                    style={{
+                      mixBlendMode: paperStyle === 'parchment' ? 'multiply' : 'luminosity',
+                      WebkitPrintColorAdjust: 'exact',
+                      printColorAdjust: 'exact',
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Islamic Decorative Top Header */}
               {includeIslamicHeader && (
-                <div className="print-header-banner text-center pb-6 mb-6 border-b-2 border-emerald-800/80">
+                <div className="print-header-banner relative z-10 text-center pb-6 mb-6 border-b-2 border-emerald-800/80">
                   <div
                     style={{ color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a' }}
                     className="font-serif text-2xl sm:text-3xl font-bold mb-1.5 select-none"
@@ -550,7 +584,7 @@ export default function PrintPreview({
               )}
 
               {/* Document Metadata Banner */}
-              <div className="print-header-banner flex flex-wrap items-center justify-between gap-3 pb-5 mb-6 border-b border-emerald-900/30 text-xs text-slate-700">
+              <div className="print-header-banner relative z-10 flex flex-wrap items-center justify-between gap-3 pb-5 mb-6 border-b border-emerald-900/30 text-xs text-slate-700">
                 <div className="flex items-center gap-2.5">
                   <span className="w-8 h-8 rounded-lg bg-emerald-900 text-white flex items-center justify-center font-mono font-bold text-xs">
                     {isMultiItem ? `${preparedItems.length}` : `#${hadith?.idInBook || hadith?.id || '1'}`}
@@ -590,7 +624,7 @@ export default function PrintPreview({
               {/* Arabic Text Body: Either Multi-Item Continuous Document Flow OR Single Text */}
               {isMultiItem ? (
                 /* Multi-Item Continuous Document Flow (Islamic History, Articles, etc.) */
-                <div className="print-text-body space-y-8 my-6">
+                <div className="print-text-body relative z-10 space-y-8 my-6">
                   {preparedItems.map((pItem) => (
                     <div
                       key={pItem.itemId}
@@ -667,7 +701,7 @@ export default function PrintPreview({
                 </div>
               ) : (
                 /* Single Hadith Arabic Text Body */
-                <div className="print-text-body my-6">
+                <div className="print-text-body relative z-10 my-6">
                   <div
                     style={{
                       ...fontSizeStyle,
@@ -705,7 +739,7 @@ export default function PrintPreview({
               {includeFooter && (
                 <div
                   style={{ borderColor: 'rgba(6, 95, 70, 0.2)' }}
-                  className="print-footer-banner mt-12 pt-6 border-t flex flex-wrap items-center justify-between gap-3 text-[11px] font-sans select-none"
+                  className="print-footer-banner relative z-10 mt-12 pt-6 border-t flex flex-wrap items-center justify-between gap-3 text-[11px] font-sans select-none"
                 >
                   <div className="flex items-center gap-2">
                     <span style={{ color: '#065f46' }} className="font-bold">المصدر:</span>

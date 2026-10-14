@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, MenuItem } = require('electron');
+const { app, BrowserWindow, Menu, MenuItem, nativeTheme, nativeImage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { registerIpcHandlers } = require('./main/ipcHandlers');

@@ -305,8 +305,8 @@ export default function ZakatCalculatorScreen() {
     <div className="h-full w-full flex flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans select-none" dir="rtl">
       
       {/* 1. Header & Gold/Currency Settings Topbar */}
-      <header className="shrink-0 bg-slate-900/90 backdrop-blur-md border-b border-emerald-900/50 px-4 sm:px-6 py-3.5 z-20 shadow-lg">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <header className="shrink-0 bg-slate-900/90 backdrop-blur-md border-b border-emerald-900/50 px-3 sm:px-6 py-3.5 z-20 shadow-lg w-full">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 w-full max-w-[1700px] mx-auto">
           
           {/* Title & Brand Badge */}
           <div className="flex items-center gap-3">
@@ -418,7 +418,7 @@ export default function ZakatCalculatorScreen() {
         </div>
 
         {/* Tab Navigation Navigation Bar */}
-        <div className="flex items-center gap-2 mt-3.5 border-t border-slate-800/80 pt-2.5 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-2 mt-3.5 border-t border-slate-800/80 pt-2.5 overflow-x-auto no-scrollbar w-full max-w-[1700px] mx-auto">
           {[
             { id: 'mal', label: 'زكاة المال والتجارة', icon: Banknote },
             { id: 'gold', label: 'زكاة الذهب والفضة', icon: Coins },
@@ -457,11 +457,11 @@ export default function ZakatCalculatorScreen() {
       </header>
 
       {/* 2. Main Content Body with Split Grid (Form vs. Live Receipt & Nisab Meter) */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 custom-scrollbar">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-7 custom-scrollbar w-full min-w-0">
+        <div className="w-full min-w-0 max-w-[1700px] mx-auto grid grid-cols-1 xl:grid-cols-12 gap-5 lg:gap-6 items-start">
           
-          {/* Left Column (or Right in RTL): Active Tab Interactive Content (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
+          {/* Left Column (or Right in RTL): Active Tab Interactive Content */}
+          <div className={`${activeTab === 'history' ? 'xl:col-span-12' : 'xl:col-span-7'} w-full min-w-0 space-y-5 lg:space-y-6`}>
 
             {/* TAB 1: زكاة المال وعروض التجارة */}
             {activeTab === 'mal' && (
@@ -910,7 +910,7 @@ export default function ZakatCalculatorScreen() {
                       >
                         <Minus className="w-4 h-4" />
                       </button>
-                      <span className="text-xl font-bold font-serif text-amber-300 min-w-8 text-center">
+                      <span className="text-xl font-bold font-serif text-amber-300 min-w-[2rem] text-center">
                         {familyMembers}
                       </span>
                       <button
@@ -1095,8 +1095,9 @@ export default function ZakatCalculatorScreen() {
 
           </div>
 
-          {/* Right Column (or Left in RTL): Sticky Interactive Nisab Meter & Breakdown Receipt (5 cols) */}
-          <div className="lg:col-span-5 space-y-5 sticky top-4">
+          {/* Right Column (or Left in RTL): Sticky Interactive Nisab Meter & Breakdown Receipt */}
+          {activeTab !== 'history' && (
+            <div className="xl:col-span-5 w-full min-w-0 space-y-5 xl:sticky xl:top-4">
             
             {/* Visual Interactive "Nisab Meter" Gauge Card (مؤشر بلوغ النصاب التفاعلي) */}
             <div className="bg-gradient-to-br from-slate-900/95 via-slate-900/80 to-emerald-950/40 border border-amber-500/30 rounded-3xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-xl">
@@ -1203,24 +1204,27 @@ export default function ZakatCalculatorScreen() {
               )}
 
               {/* Animated Due Amount Display */}
-              <div className="bg-slate-950/90 rounded-2xl p-4 border border-emerald-900/40 text-center relative overflow-hidden">
-                <span className="text-xs font-semibold text-slate-400 block mb-1">
+              <div className="bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 rounded-2xl p-4 sm:p-5 border border-emerald-500/30 text-center relative overflow-hidden shadow-xl">
+                <span className="text-xs sm:text-sm font-bold text-emerald-300 block mb-2 tracking-wide" style={{ color: '#6ee7b7' }}>
                   إجمالي مقدار الزكاة الواجب إخراجها
                 </span>
                 
-                <div className="text-3xl sm:text-4xl font-extrabold font-serif text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-emerald-300 to-amber-200 py-1">
+                <div
+                  className="text-3xl sm:text-4xl font-extrabold font-serif text-amber-300 py-1"
+                  style={{ color: '#fcd34d', textShadow: '0 0 20px rgba(245, 158, 11, 0.25)' }}
+                >
                   {activeTab === 'mal' && malResult.zakatDue.toLocaleString()}
                   {activeTab === 'gold' && goldSilverResult.totalZakatCashDue.toLocaleString()}
                   {activeTab === 'fitr' && (fitrMode === 'cash' ? fitrResult.totalCashDue.toLocaleString() : `${fitrResult.totalKgDue} كجم`)}
                   {activeTab === 'history' && '0'}
                   {' '}
-                  <span className="text-base font-sans font-bold text-amber-400">
+                  <span className="text-base font-sans font-bold text-amber-400" style={{ color: '#fbbf24' }}>
                     {activeTab === 'fitr' && fitrMode === 'grain' ? '' : currency.symbol}
                   </span>
                 </div>
 
                 {activeTab === 'gold' && goldSilverResult.goldZakatGramsDue > 0 && (
-                  <div className="text-xs text-amber-400/90 mt-1">
+                  <div className="text-xs text-amber-300 font-semibold mt-2" style={{ color: '#fcd34d' }}>
                     أو عيناً: {goldSilverResult.goldZakatGramsDue} جرام ذهب عيار 24
                   </div>
                 )}
@@ -1351,7 +1355,8 @@ export default function ZakatCalculatorScreen() {
               </ul>
             </div>
 
-          </div>
+            </div>
+          )}
 
         </div>
       </div>

@@ -159,7 +159,7 @@
   /* 5. Styling for printable Hadith document on paper */
   .printable-hadith-card {
     display: block !important;
-    position: static !important;
+    position: relative !important;
     background: #ffffff !important;
     color: #0f172a !important;
     border: 2px solid #065f46 !important;
@@ -171,11 +171,33 @@
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
-    overflow: visible !important;
+    overflow: hidden !important;
     page-break-inside: auto !important;
     break-inside: auto !important;
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
+  }
+
+  .print-watermark {
+    display: flex !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+    opacity: 0.05 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-watermark img {
+    display: block !important;
+    max-width: 320px !important;
+    max-height: 320px !important;
+    opacity: 0.05 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .printable-hadith-card * {
