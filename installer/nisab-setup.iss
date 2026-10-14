@@ -20,7 +20,7 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\Nisab
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
-OutputDir=..\dist-bin\make\installer
+OutputDir=..\build-out\make\installer
 OutputBaseFilename=Nisab-1.0-Setup
 SetupIconFile=..\src\assets\icon.ico
 WizardSmallImageFile=..\src\assets\wizard-small.bmp
@@ -66,7 +66,7 @@ FinishedLabel=تم تثبيت تطبيق نصاب (الإصدار {#MyAppVersion
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\dist-bin\Nisab-win32-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\build-out\Nisab-win32-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"

@@ -1,0 +1,14 @@
+{
+  "files.watcherExclude": {
+    "**/dist-bin/**": true,
+    "**/dist-out/**": true,
+    "**/build-out/**": true,
+    "**/dist/**": true
+  },
+  "search.exclude": {
+    "**/dist-bin/**": true,
+    "**/dist-out/**": true,
+    "**/build-out/**": true,
+    "**/dist/**": true
+  }
+}
