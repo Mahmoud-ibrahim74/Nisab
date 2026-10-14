@@ -17,7 +17,8 @@ import {
   Coins,
   Award,
   Library,
-  Landmark
+  Landmark,
+  Info
 } from 'lucide-react';
 import DashboardScreen from './screens/DashboardScreen';
 import QuranScreen from './screens/QuranScreen';
@@ -34,6 +35,7 @@ import AsmaScreen from './screens/AsmaScreen';
 import RadioScreen from './screens/RadioScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import AboutScreen from './screens/AboutScreen';
 import { usePrayerNotifier } from './hooks/usePrayerNotifier';
 import { useKhatmahNotifier } from './hooks/useKhatmahNotifier';
 import appIcon from '../assets/icon.png';
@@ -81,6 +83,7 @@ const NAV_GROUPS = [
     title: 'النظام',
     items: [
       { id: 'settings', label: 'الإعدادات', icon: Settings },
+      { id: 'about', label: 'عن التطبيق', icon: Info },
     ]
   }
 ];
@@ -541,6 +544,20 @@ export default function App() {
               className="h-full w-full min-w-0"
             >
               <SettingsScreen />
+            </motion.div>
+          )}
+
+          {activeTab === 'about' && (
+            <motion.div
+              key="about"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ width: '100%', height: '100%', minWidth: 0 }}
+              className="h-full w-full min-w-0"
+            >
+              <AboutScreen />
             </motion.div>
           )}
         </AnimatePresence>
