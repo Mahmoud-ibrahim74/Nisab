@@ -39,7 +39,7 @@ import CalendarScreen from './screens/CalendarScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import AboutScreen from './screens/AboutScreen';
 import FanoosAlNoorScreen from './screens/Kids/FanoosAlNoorScreen';
-import HudhudTvScreen from './screens/Kids/HudhudTvScreen';
+import Kids_tv from './screens/Kids/Kids_tv';
 import { usePrayerNotifier } from './hooks/usePrayerNotifier';
 import { useKhatmahNotifier } from './hooks/useKhatmahNotifier';
 import appIcon from '../assets/icon.png';
@@ -597,7 +597,7 @@ export default function App() {
               style={{ width: '100%', height: '100%', minWidth: 0 }}
               className="h-full w-full min-w-0"
             >
-              <HudhudTvScreen />
+              <Kids_tv />
             </motion.div>
           )}
         </AnimatePresence>

@@ -24,7 +24,7 @@ import {
   Check,
   Film
 } from 'lucide-react';
-import hudhudData from '../../../Resources/kids_tv.json';
+import kidsTvData from '../../../Resources/kids_tv.json';
 import { soundFx } from './audio';
 
 // Helper to extract YouTube ID or Playlist ID
@@ -48,15 +48,17 @@ function cleanTitle(title) {
   if (!title) return '';
   return title
     .replace(/\|\s*قناة هدهد\s*-\s*Hudhud/gi, '')
+    .replace(/\|\s*قناة أطفال(\s*-\s*Kids)?/gi, '')
+    .replace(/هدهد/g, 'أطفال')
     .replace(/بدون موسيقى/gi, '')
     .replace(/بدون ايقاع/gi, '')
     .replace(/بدون إيقاع/gi, '')
     .trim();
 }
 
-export default function HudhudTvScreen() {
+export default function Kids_tv() {
   const [channels] = useState(() => {
-    return (hudhudData || []).map((item, index) => {
+    return (kidsTvData || []).map((item, index) => {
       const parsed = parseYouTubeUrl(item.url);
       return {
         id: index,
@@ -335,7 +337,7 @@ export default function HudhudTvScreen() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg sm:text-xl font-bold font-serif text-amber-300">
-                تلفزيون هدهد للأطفال (بدون موسيقى)
+                تلفزيون الأطفال (بدون موسيقى)
               </h1>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/40 text-emerald-300 font-bold">
                 أناشيد تربوية هادفة
@@ -451,11 +453,6 @@ export default function HudhudTvScreen() {
                             </h4>
                           </div>
                         </div>
-
-                        {/* HD / No Music Logo Tag */}
-                        <div className="px-3 py-1 rounded-xl bg-slate-950/80 backdrop-blur-md border border-emerald-500/40 text-[11px] font-bold text-emerald-300 shadow-lg">
-                          هدهد • بدون موسيقى
-                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -545,7 +542,7 @@ export default function HudhudTvScreen() {
             {/* Smart TV Bottom Chin Bezel & Power LED */}
             <div className="w-full pt-3 pb-1 flex items-center justify-between px-3 text-xs text-slate-500">
               <span className="font-mono tracking-widest text-[10px] text-slate-400 font-bold">
-                HUDHUD SMART TV 4K
+                KIDS SMART TV 4K
               </span>
 
               {/* Central Metallic TV Stand Connector */}
@@ -600,7 +597,7 @@ export default function HudhudTvScreen() {
               </button>
 
               <span className="text-[10px] font-bold text-slate-500 font-mono tracking-wider">
-                HUDHUD REMOTE
+                KIDS REMOTE
               </span>
 
               {/* Mute Button */}
@@ -769,7 +766,7 @@ export default function HudhudTvScreen() {
                   </div>
                   <div>
                     <h2 className="text-lg sm:text-xl font-bold font-serif text-amber-300">
-                      دليل قنوات وأناشيد هدهد ({channels.length} أنشودة)
+                      دليل قنوات وأناشيد الأطفال ({channels.length} أنشودة)
                     </h2>
                     <p className="text-xs text-slate-400">
                       اضغط على أي أنشودة للانتقال إليها فوراً على شاشة التلفاز
