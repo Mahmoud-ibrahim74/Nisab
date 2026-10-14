@@ -18,7 +18,9 @@ import {
   Award,
   Library,
   Landmark,
-  Info
+  Info,
+  Gamepad2,
+  Tv
 } from 'lucide-react';
 import DashboardScreen from './screens/DashboardScreen';
 import QuranScreen from './screens/QuranScreen';
@@ -36,6 +38,8 @@ import RadioScreen from './screens/RadioScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import AboutScreen from './screens/AboutScreen';
+import FanoosAlNoorScreen from './screens/Kids/FanoosAlNoorScreen';
+import HudhudTvScreen from './screens/Kids/HudhudTvScreen';
 import { usePrayerNotifier } from './hooks/usePrayerNotifier';
 import { useKhatmahNotifier } from './hooks/useKhatmahNotifier';
 import appIcon from '../assets/icon.png';
@@ -63,19 +67,27 @@ const NAV_GROUPS = [
     items: [
       { id: 'hadith', label: 'الحديث الشريف', icon: Scroll },
       { id: 'books', label: 'المكتبة الإسلامية', icon: Library },
-      { id: 'history', label: 'التاريخ الإسلامي', icon: Landmark, badge: '6.1K' },
-      { id: 'quizzes', label: 'المسابقات الإسلامية', icon: Award, badge: '5.8K' },
+      { id: 'history', label: 'التاريخ الإسلامي', icon: Landmark },
+      { id: 'quizzes', label: 'المسابقات الإسلامية', icon: Award },
     ]
   },
   {
     id: 'worship_section',
     title: 'العبادات والأذكار',
     items: [
-      { id: 'zakat', label: 'حاسبة الزكاة', icon: Coins, badge: 'نِصاب' },
+      { id: 'zakat', label: 'حاسبة الزكاة', icon: Coins },
       { id: 'azkar', label: 'الأذكار', icon: Heart },
       { id: 'roqia', label: 'الرقية الشرعية', icon: ShieldCheck },
       { id: 'asma', label: 'أسماء الله الحسنى', icon: Sparkles },
       { id: 'calendar', label: 'التقويم الهجري', icon: Calendar, badge: 'Soon' },
+    ]
+  },
+  {
+    id: 'kids_section',
+    title: 'واحة الأطفال',
+    items: [
+      { id: 'kids_fanoos', label: 'فانوس النور (لعبة)', icon: Gamepad2},
+      { id: 'kids_tv', label: 'تلفزيون الأطفال', icon: Tv },
     ]
   },
   {
@@ -558,6 +570,34 @@ export default function App() {
               className="h-full w-full min-w-0"
             >
               <AboutScreen />
+            </motion.div>
+          )}
+
+          {activeTab === 'kids_fanoos' && (
+            <motion.div
+              key="kids_fanoos"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ width: '100%', height: '100%', minWidth: 0 }}
+              className="h-full w-full min-w-0"
+            >
+              <FanoosAlNoorScreen />
+            </motion.div>
+          )}
+
+          {activeTab === 'kids_tv' && (
+            <motion.div
+              key="kids_tv"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ width: '100%', height: '100%', minWidth: 0 }}
+              className="h-full w-full min-w-0"
+            >
+              <HudhudTvScreen />
             </motion.div>
           )}
         </AnimatePresence>
