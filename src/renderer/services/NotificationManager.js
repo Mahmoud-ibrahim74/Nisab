@@ -135,14 +135,24 @@ export class NotificationManager {
    * Safely plays offline audio file (azan.mp3, reminder.mp3)
    */
   async playAudio(soundName) {
-    if (!soundName || !window.nisabAPI?.getOfflineAudio) return;
+    if (!soundName) return;
 
     try {
       this.stopAudio();
-      const audioUri = await window.nisabAPI.getOfflineAudio(soundName);
-      this.audioElement.src = audioUri;
-      await this.audioElement.play();
-      this.currentPlayingSound = soundName;
+      let audioUri = null;
+      if (window.nisabAPI?.getOfflineAudio) {
+        try {
+          audioUri = await window.nisabAPI.getOfflineAudio(soundName);
+        } catch (e) {}
+      }
+      if (!audioUri && soundName === 'rattil.mp3') {
+        audioUri = 'https://everyayah.com/data/Alafasy_128kbps/073004.mp3';
+      }
+      if (audioUri) {
+        this.audioElement.src = audioUri;
+        await this.audioElement.play();
+        this.currentPlayingSound = soundName;
+      }
     } catch (err) {
       console.warn(`Could not play offline audio [${soundName}]:`, err);
       this.currentPlayingSound = null;
@@ -214,7 +224,7 @@ export class NotificationManager {
         type: 'reminder',
         title: '📖 تذكير بختمة القرآن الكريم • نِصاب',
         message: 'لم تبدأ ختمة للقرآن الكريم بعد! ابدأ رحلتك المباركة اليوم وحدد خطتك لقراءة كتاب الله الكريم.',
-        sound: 'reminder.mp3'
+        sound: 'rattil.mp3'
       });
     }
 
@@ -223,7 +233,7 @@ export class NotificationManager {
       type: 'reminder',
       title: '📖 تذكير بالورد القرآني اليومي • نِصاب',
       message: `لم تبدأ وردك القرآني اليوم بعد (${todayPages} صفحة تبدأ من ص ${currentPage}${surahText ? ' • ' + surahText : ''}). بادر بإتمام وردك المبارك اليوم! ✨`,
-      sound: 'reminder.mp3'
+      sound: 'rattil.mp3'
     });
   }
 

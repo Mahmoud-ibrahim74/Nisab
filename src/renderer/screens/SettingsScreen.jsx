@@ -12,10 +12,15 @@ import {
   Radio,
   Clock,
   Sparkles,
-  Power
+  Power,
+  RotateCcw,
+  AlertTriangle,
+  CheckCircle2,
+  X
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import SwitchToggle from '../components/SwitchToggle';
+import WarningAlert from '../components/WarningAlert';
 import { notificationManager } from '../services/NotificationManager';
 
 // AlAdhan API Calculation Method IDs Mapping
@@ -42,6 +47,7 @@ export default function SettingsScreen() {
   const [countries, setCountries] = useState([]);
   const [reciters, setReciters] = useState({});
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [resetModalState, setResetModalState] = useState(null); // null | 'confirm' | 'success'
 
   // Settings State initialized from localStorage if available
   const [selectedCountry, setSelectedCountry] = useState(() => {
@@ -210,11 +216,21 @@ export default function SettingsScreen() {
       setPreviewingAudio(null);
     } else {
       try {
-        const soundUri = await window.nisabAPI.getOfflineAudio(soundName);
-        audioElement.src = soundUri;
-        audioElement.play();
-        setPreviewingAudio(soundName);
-        audioElement.onended = () => setPreviewingAudio(null);
+        let soundUri = null;
+        if (window.nisabAPI?.getOfflineAudio) {
+          try {
+            soundUri = await window.nisabAPI.getOfflineAudio(soundName);
+          } catch (e) {}
+        }
+        if (!soundUri && soundName === 'rattil.mp3') {
+          soundUri = 'https://everyayah.com/data/Alafasy_128kbps/073004.mp3';
+        }
+        if (soundUri) {
+          audioElement.src = soundUri;
+          audioElement.play();
+          setPreviewingAudio(soundName);
+          audioElement.onended = () => setPreviewingAudio(null);
+        }
       } catch (err) {
         console.error('Failed to preview audio:', err);
       }
@@ -274,6 +290,81 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleExecuteReset = async () => {
+    try {
+      // 1. Clear all local storage caches and keys completely
+      localStorage.clear();
+
+      // 2. Reset and delete Khatmah tracker data from disk and broadcast update
+      const EMPTY_KHATMAH = {
+        hasActiveKhatmah: false,
+        plan: null,
+        currentPage: 1,
+        currentSurahId: 1,
+        currentAyahNumber: 1,
+        completedDaysCount: 0,
+        streak: 0,
+        lastCompletedDate: null,
+        history: []
+      };
+
+      if (window.nisabAPI?.saveKhatmahData) {
+        try {
+          await window.nisabAPI.saveKhatmahData(EMPTY_KHATMAH);
+        } catch (e) {
+          console.warn('Failed to clear Khatmah data on disk:', e);
+        }
+      }
+
+      localStorage.setItem('nisab_khatmah_data', JSON.stringify(EMPTY_KHATMAH));
+      window.dispatchEvent(new CustomEvent('nisab-khatmah-updated', { detail: EMPTY_KHATMAH }));
+
+      // 3. Reset component states to default values
+      setSelectedCountry('Egypt');
+      setSelectedCity('Cairo');
+      setSelectedReciter('1');
+      setCalcMethod('Egyptian');
+      setEnableNotification(true);
+      setEnableAdhanSound(true);
+      setEnableReminder(true);
+      setReminderMinutes(15);
+      setEnableKhatmahReminder(true);
+      setEnableStartup(false);
+
+      // 4. Reset startup setting via Electron if available
+      if (window.nisabAPI?.setAutoStart) {
+        try {
+          await window.nisabAPI.setAutoStart(false);
+        } catch (e) {}
+      }
+
+      // 5. Seed clean default config in localStorage
+      const defaultConfig = {
+        country: 'Egypt',
+        countryArabic: 'مصر',
+        city: 'Cairo',
+        latitude: 30.0444,
+        longitude: 31.2357,
+        reciterId: '1',
+        calcMethod: 'Egyptian',
+        enableNotification: true,
+        enableAdhanSound: true,
+        enableReminder: true,
+        reminderMinutes: 15,
+        enableKhatmahReminder: true,
+        enableStartup: false,
+        adhanSound: 'azan.mp3'
+      };
+      localStorage.setItem('nisab_user_settings', JSON.stringify(defaultConfig));
+      window.dispatchEvent(new Event('nisab-settings-changed'));
+
+      // 6. Show custom success alert state
+      setResetModalState('success');
+    } catch (err) {
+      console.error('Failed to reset defaults:', err);
+    }
+  };
+
   return (
     <div
       style={{ height: '100%', overflowY: 'auto' }}
@@ -297,9 +388,9 @@ export default function SettingsScreen() {
 
           <button
             onClick={handleSaveSettings}
-            className="flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm transition shadow-lg self-start sm:self-auto"
+            className="flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs sm:text-sm transition shadow-lg shadow-amber-900/30 self-start sm:self-auto active:scale-95"
           >
-            {savedSuccess ? <Check className="w-4 h-4 text-slate-950" /> : <Save className="w-4 h-4" />}
+            {savedSuccess ? <Check className="w-4 h-4 text-white" /> : <Save className="w-4 h-4" />}
             <span>{savedSuccess ? 'تم الحفظ بنجاح' : 'حفظ التغييرات'}</span>
           </button>
         </div>
@@ -498,7 +589,7 @@ export default function SettingsScreen() {
                     onClick={() => handleTestAudio('azan.mp3')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${
                       previewingAudio === 'azan.mp3'
-                        ? 'bg-amber-500 text-slate-950 border-amber-400'
+                        ? 'bg-amber-600 text-white font-bold border-amber-400'
                         : 'bg-emerald-900/60 hover:bg-emerald-800/80 text-amber-300 border-emerald-800/80'
                     }`}
                   >
@@ -545,7 +636,7 @@ export default function SettingsScreen() {
                     onClick={() => handleTestAudio('reminder.mp3')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition border ${
                       previewingAudio === 'reminder.mp3'
-                        ? 'bg-amber-500 text-slate-950 border-amber-400'
+                        ? 'bg-amber-600 text-white font-bold border-amber-400'
                         : 'bg-emerald-900/60 hover:bg-emerald-800/80 text-amber-300 border-emerald-800/80'
                     }`}
                   >
@@ -628,18 +719,35 @@ export default function SettingsScreen() {
                 <div className="flex items-center gap-3 self-start sm:self-center shrink-0">
                   <button
                     type="button"
-                    onClick={() => notificationManager.notifyKhatmahReminder({ hasActiveKhatmah: true, currentPage: 1, surahName: 'الفاتحة', todayPages: 20 })}
+                    onClick={() => {
+                      notificationManager.notifyKhatmahReminder({ hasActiveKhatmah: true, currentPage: 1, surahName: 'الفاتحة', todayPages: 20 });
+                      handleTestAudio('rattil.mp3');
+                    }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-xs text-amber-300 border border-amber-500/40 font-semibold transition shadow-sm"
-                    title="تجربة تنبيه الختمة الآن"
+                    title="تجربة تنبيه الختمة وسماع الآية الآن"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>تجربة تنبيه الختمة</span>
+                    {previewingAudio === 'rattil.mp3' ? (
+                      <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+                    )}
+                    <span>{previewingAudio === 'rattil.mp3' ? 'إيقاف الصوت' : 'تجربة تنبيه الختمة'}</span>
                   </button>
 
                   <SwitchToggle
                     id="toggle-khatmah-reminder"
                     checked={enableKhatmahReminder}
-                    onChange={setEnableKhatmahReminder}
+                    onChange={(checked) => {
+                      setEnableKhatmahReminder(checked);
+                      if (checked) {
+                        handleTestAudio('rattil.mp3');
+                      } else {
+                        if (previewingAudio === 'rattil.mp3') {
+                          audioElement.pause();
+                          setPreviewingAudio(null);
+                        }
+                      }
+                    }}
                     ariaLabel="تفعيل تنبيه الورد اليومي للختمة"
                   />
                 </div>
@@ -698,7 +806,48 @@ export default function SettingsScreen() {
             </div>
           </div>
         </div>
+
+        {/* Section 5: Reset to Defaults & Clear Storage */}
+        <div className="bg-slate-900/80 border border-red-900/40 rounded-3xl p-4 sm:p-6 md:p-8 shadow-xl backdrop-blur-md space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-red-900/30 pb-3">
+            <div className="flex items-center gap-2 text-rose-400 font-bold">
+              <RotateCcw className="w-5 h-5" />
+              <h2 className="text-base sm:text-lg">استعادة الإعدادات الافتراضية</h2>
+            </div>
+            <span className="text-xs text-rose-300 bg-rose-950/80 px-3 py-1 rounded-full border border-rose-800/60 font-medium self-start sm:self-auto">
+              إعادة ضبط المصنع
+            </span>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-2xl bg-slate-950 border border-red-950/60 hover:border-red-900/60 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="text-sm sm:text-base font-bold text-slate-100">
+                إعادة ضبط كافة الإعدادات ومسح الذاكرة المؤقتة
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                استعادة جميع إعدادات التطبيق إلى حالتها الافتراضية ومسح البيانات المحفوظة محلياً (Local Storage).
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setResetModalState('confirm')}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-rose-600/20 hover:bg-rose-600 border border-rose-500/50 hover:border-rose-500 text-rose-300 hover:text-white font-bold text-xs sm:text-sm transition shadow-lg active:scale-95 shrink-0"
+              title="استعادة الإعدادات الافتراضية ومسح البيانات"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>استعادة الافتراضي</span>
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Reusable WarningAlert Component */}
+      <WarningAlert
+        state={resetModalState}
+        onClose={() => setResetModalState(null)}
+        onConfirm={handleExecuteReset}
+      />
     </div>
   );
 }

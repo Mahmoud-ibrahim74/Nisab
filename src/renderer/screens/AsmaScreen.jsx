@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -12,13 +12,23 @@ import {
   RotateCcw,
   Heart,
   LayoutGrid,
-  List
+  List,
+  Volume2,
+  BookOpen,
+  Info
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
+import Loader from '../components/Loader';
+import MiniLoader from '../components/MiniLoader';
 import { normalizeArabic } from '../../utils/arabicNormalizer';
+
+const API_URL =
+  'https://islamicapi.com/api/v1/asma-ul-husna/?language=ar&api_key=qFGzIOzQaiMIDYK8JzIEw7JhcWiZGqbKGTuNrVH1nwkpoWET';
+const CACHE_KEY = 'nisab_asma_ul_husna_api_data';
 
 export default function AsmaScreen() {
   const [names, setNames] = useState([]);
+  const [metaData, setMetaData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeRange, setActiveRange] = useState('all'); // 'all' | 'fav' | '1-25' | '26-50' | '51-75' | '76-99'
@@ -37,25 +47,148 @@ export default function AsmaScreen() {
   const [modalCount, setModalCount] = useState(0);
   const [copiedId, setCopiedId] = useState(null);
 
-  // 1. Load 99 Names from Resources/99_Names_Of_Allah.json
+  // Audio Playback State
+  const [playingAudioId, setPlayingAudioId] = useState(null);
+  const [audioLoadingId, setAudioLoadingId] = useState(null);
+  const audioRef = useRef(null);
+
+  // Stop audio on unmount
   useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Resolve absolute audio URL
+  const getAudioUrl = (audioPath) => {
+    if (!audioPath) return null;
+    if (audioPath.startsWith('http://') || audioPath.startsWith('https://')) {
+      return audioPath;
+    }
+    return `https://islamicapi.com${audioPath.startsWith('/') ? '' : '/'}${audioPath}`;
+  };
+
+  // Play Audio with MiniLoader states (plays through without stop toggle)
+  const handlePlayAudio = async (item, e) => {
+    e?.stopPropagation();
+    if (!item?.audio) return;
+
+    const fullUrl = getAudioUrl(item.audio);
+
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+      }
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+
+      setAudioLoadingId(item.number);
+      setPlayingAudioId(item.number);
+
+      audioRef.current.src = fullUrl;
+
+      audioRef.current.oncanplay = () => {
+        setAudioLoadingId(null);
+      };
+
+      audioRef.current.onplaying = () => {
+        setAudioLoadingId(null);
+      };
+
+      audioRef.current.onwaiting = () => {
+        setAudioLoadingId(item.number);
+      };
+
+      audioRef.current.onended = () => {
+        setPlayingAudioId(null);
+        setAudioLoadingId(null);
+      };
+
+      audioRef.current.onerror = () => {
+        console.warn('Audio playback error for name:', item.name);
+        setPlayingAudioId(null);
+        setAudioLoadingId(null);
+      };
+
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('Audio play catch:', err);
+          setPlayingAudioId(null);
+          setAudioLoadingId(null);
+        });
+      }
+    } catch (err) {
+      console.error('Audio playback failed:', err);
+      setPlayingAudioId(null);
+      setAudioLoadingId(null);
+    }
+  };
+
+  // 1. Load 99 Names from Islamic API with Cache & Offline Fallback
+  useEffect(() => {
+    let isCancelled = false;
+
     async function loadData() {
+      // 1. First attempt: load from local cache for instant UI rendering
       try {
-        setLoading(true);
-        const res = await window.nisabAPI.readJson('99_Names_Of_Allah.json');
-        if (res && Array.isArray(res.data)) {
-          setNames(res.data);
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.names?.length) {
+            setNames(parsed.names);
+            setMetaData(parsed);
+            setLoading(false);
+          }
         }
-      } catch (err) {
-        console.error('Failed to load 99 Names of Allah:', err);
-      } finally {
-        setLoading(false);
+      } catch (e) {}
+
+      // 2. Fetch fresh data from Islamic API
+      try {
+        const response = await fetch(API_URL);
+        if (response.ok) {
+          const json = await response.json();
+          if (json?.status === 'success' && json?.data?.names?.length) {
+            if (!isCancelled) {
+              setNames(json.data.names);
+              setMetaData(json.data);
+              setLoading(false);
+            }
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify(json.data));
+            } catch (err) {}
+            return;
+          }
+        }
+      } catch (networkErr) {
+        console.warn('Islamic API fetch error, checking offline file:', networkErr);
+      }
+
+      // 3. Fallback to local 99_Names_Of_Allah.json if cache and API unavailable
+      if (!isCancelled) {
+        try {
+          if (window.nisabAPI?.readJson) {
+            const res = await window.nisabAPI.readJson('99_Names_Of_Allah.json');
+            if (res && Array.isArray(res.data)) {
+              setNames(res.data);
+            }
+          }
+        } catch (fileErr) {
+          console.error('Failed to load local fallback names:', fileErr);
+        } finally {
+          setLoading(false);
+        }
       }
     }
 
-    if (window.nisabAPI) {
-      loadData();
-    }
+    loadData();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   // Save favorites to localStorage
@@ -75,10 +208,11 @@ export default function AsmaScreen() {
     });
   };
 
-  // Copy Name Details (Arabic only)
+  // Copy Name Details (Arabic name and meaning)
   const handleCopy = (item, e) => {
     e?.stopPropagation();
-    const copyText = `« ${item.name} » (الاسم رقم ${item.number})`;
+    const meaningText = item.meaning ? ` - ${item.meaning}` : '';
+    const copyText = `« ${item.name} » (الاسم رقم ${item.number})${meaningText}`;
     navigator.clipboard.writeText(copyText);
     setCopiedId(item.number);
     setTimeout(() => setCopiedId(null), 2000);
@@ -136,17 +270,19 @@ export default function AsmaScreen() {
         return false;
       }
 
-      // 2. Filter by search query (Arabic or number)
+      // 2. Filter by search query (Arabic name, meaning, or number)
       if (searchQuery.trim()) {
         const query = searchQuery.trim().toLowerCase();
         const normQuery = normalizeArabic(query);
-        const normName = normalizeArabic(item.name);
+        const normName = normalizeArabic(item.name || '');
+        const normMeaning = normalizeArabic(item.meaning || '');
         const numStr = String(item.number);
 
-        const matchesArabic = normName.includes(normQuery);
+        const matchesName = normName.includes(normQuery);
+        const matchesMeaning = normMeaning.includes(normQuery);
         const matchesNum = numStr === query;
 
-        return matchesArabic || matchesNum;
+        return matchesName || matchesMeaning || matchesNum;
       }
 
       return true;
@@ -171,10 +307,10 @@ export default function AsmaScreen() {
               </span>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-amber-300 font-serif">
-                  أسماء الله الحسنى
+                  {metaData?.arabic_title || 'أسماء الله الحسنى'}
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  تأمل واستحضر أسماء الله الحسنى التسعة والتسعين وفضل الذكر بها
+                  {metaData?.description || 'تأمل واستحضر أسماء الله الحسنى التسعة والتسعين وفضل الذكر بها ومعانيها الجليلة'}
                 </p>
               </div>
             </div>
@@ -183,10 +319,10 @@ export default function AsmaScreen() {
           {/* Prophetic Hadith Card */}
           <div className="bg-emerald-950/60 border border-emerald-800/60 rounded-2xl px-4 py-2.5 shadow-lg max-w-md">
             <div className="text-xs sm:text-sm font-serif text-amber-200 text-center leading-relaxed">
-              « إِنَّ لِلَّهِ تِسْعَةً وَتِسْعِينَ اسْمًا، مِائَةً إِلَّا وَاحِدًا، مَنْ أَحْصَاهَا دَخَلَ الْجَنَّةَ »
+              {metaData?.hadith || '« إِنَّ لِلَّهِ تِسْعَةً وَتِسْعِينَ اسْمًا، مِائَةً إِلَّا وَاحِدًا، مَنْ أَحْصَاهَا دَخَلَ الْجَنَّةَ »'}
             </div>
             <div className="text-[10px] text-emerald-400 text-center font-mono mt-1">
-              صحيح البخاري ومسلم
+              رواه البخاري ومسلم
             </div>
           </div>
         </div>
@@ -211,15 +347,43 @@ export default function AsmaScreen() {
                   {nameOfTheDay.name}
                 </div>
 
-                <div className="text-sm font-serif text-emerald-300">
-                  الاسم المبارك رقم {nameOfTheDay.number} من أسماء الله الحسنى
-                </div>
+                {nameOfTheDay.meaning ? (
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
+                    {nameOfTheDay.meaning}
+                  </p>
+                ) : (
+                  <div className="text-sm font-serif text-emerald-300">
+                    الاسم المبارك رقم {nameOfTheDay.number} من أسماء الله الحسنى
+                  </div>
+                )}
               </div>
 
-              <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {nameOfTheDay.audio && (
+                  <button
+                    type="button"
+                    onClick={(e) => handlePlayAudio(nameOfTheDay, e)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-900/80 hover:bg-emerald-800 text-amber-300 border border-emerald-700/60 font-semibold text-xs sm:text-sm transition shadow active:scale-95"
+                    title="الاستماع لنطق الاسم"
+                  >
+                    {playingAudioId === nameOfTheDay.number || audioLoadingId === nameOfTheDay.number ? (
+                      <>
+                        <MiniLoader size="xs" color="amber" variant="dots" />
+                        <span>جاري الاستماع...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="w-4 h-4 text-amber-400" />
+                        <span>استماع</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
                 <button
+                  type="button"
                   onClick={() => handleOpenDetails(nameOfTheDay)}
-                  className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm transition shadow-lg hover:scale-105 active:scale-95"
+                  className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs sm:text-sm transition shadow-lg shadow-amber-900/30 hover:scale-105 active:scale-95"
                 >
                   عرض تفاصيل الاسم والتسبيح
                 </button>
@@ -238,11 +402,12 @@ export default function AsmaScreen() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث في أسماء الله الحسنى أو بالرقم (مثال: الرحمن، الملك، القدوس، 1)..."
+                placeholder="ابحث في أسماء الله الحسنى، المعاني، أو بالرقم (مثال: الرحمن، الملك، كثير الرحمة، 1)..."
                 className="w-full bg-slate-900/80 border border-emerald-800/60 rounded-2xl pr-10 pl-10 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/40 shadow-inner transition"
               />
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() => setSearchQuery('')}
                   className="absolute left-3 top-2.5 text-slate-400 hover:text-white"
                 >
@@ -272,11 +437,12 @@ export default function AsmaScreen() {
                 return (
                   <button
                     key={chip.id}
+                    type="button"
                     onClick={() => setActiveRange(chip.id)}
                     className={`px-3 sm:px-4 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm ${
                       isActive
-                        ? 'bg-amber-500 text-slate-950 shadow-amber-500/20'
-                        : 'bg-slate-900/70 hover:bg-emerald-950/80 border border-emerald-900/50 text-slate-300'
+                        ? 'bg-amber-600 text-white font-bold shadow-md shadow-amber-900/30'
+                        : 'bg-slate-900/70 hover:bg-emerald-950/80 border border-emerald-900/50 text-slate-300 hover:text-white'
                     }`}
                   >
                     {chip.label}
@@ -285,7 +451,7 @@ export default function AsmaScreen() {
               })}
             </div>
 
-            {/* View Mode Toggle: Grid vs List with Spring Indicator */}
+            {/* View Mode Toggle: Grid vs List */}
             <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-emerald-900/50 shadow-inner mr-auto sm:mr-0 relative">
               <button
                 type="button"
@@ -333,17 +499,15 @@ export default function AsmaScreen() {
           </div>
         </div>
 
-        {/* 99 Names Cards Grid or List */}
+        {/* 99 Names Cards: Render Loader when loading */}
         {loading ? (
-          <div className="py-24 text-center text-emerald-400">
-            <Sparkles className="w-8 h-8 animate-spin mx-auto mb-2 text-amber-400" />
-            جاري تحميل أسماء الله الحسنى...
-          </div>
+          <Loader text="جاري تحميل أسماء الله الحسنى ومعانيها الجليلة..." />
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4">
             {filteredNames.map((item) => {
               const isFav = favorites.includes(item.number);
               const isCopied = copiedId === item.number;
+              const isPlaying = playingAudioId === item.number;
 
               return (
                 <motion.div
@@ -355,14 +519,34 @@ export default function AsmaScreen() {
                   {/* Gold accent sheen */}
                   <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-transparent via-amber-400/40 to-transparent group-hover:via-amber-400 transition-all" />
 
-                  {/* Top Bar: Number Badge & Favorite + Copy */}
+                  {/* Top Bar: Number Badge & Audio + Favorite + Copy */}
                   <div className="flex items-center justify-between mb-3">
                     <span className="w-7 h-7 rounded-full bg-emerald-950 border border-amber-500/40 text-amber-300 flex items-center justify-center text-xs font-mono font-bold shadow">
                       {item.number}
                     </span>
 
                     <div className="flex items-center gap-1">
+                      {item.audio && (
+                        <button
+                          type="button"
+                          onClick={(e) => handlePlayAudio(item, e)}
+                          className={`p-1 rounded-lg transition flex items-center justify-center min-w-[24px] min-h-[24px] ${
+                            isPlaying || audioLoadingId === item.number
+                              ? 'text-amber-400 bg-amber-500/20'
+                              : 'text-slate-500 hover:text-amber-300'
+                          }`}
+                          title="الاستماع لنطق الاسم"
+                        >
+                          {isPlaying || audioLoadingId === item.number ? (
+                            <MiniLoader size="xs" color="amber" variant="dots" />
+                          ) : (
+                            <Volume2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
+
                       <button
+                        type="button"
                         onClick={(e) => handleCopy(item, e)}
                         className="p-1 rounded-lg text-slate-500 hover:text-amber-300 transition"
                         title="نسخ تفاصيل الاسم"
@@ -371,6 +555,7 @@ export default function AsmaScreen() {
                       </button>
 
                       <button
+                        type="button"
                         onClick={(e) => toggleFavorite(item.number, e)}
                         className={`p-1 rounded-lg transition ${
                           isFav ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300'
@@ -383,13 +568,19 @@ export default function AsmaScreen() {
                   </div>
 
                   {/* Main Calligraphy Name */}
-                  <div className="text-center my-3">
+                  <div className="text-center my-2">
                     <div className="text-2xl sm:text-3xl font-serif font-bold text-amber-200 group-hover:text-amber-300 transition-colors tracking-wide py-1">
                       {item.name}
                     </div>
-                    <div className="text-[11px] text-emerald-400/80 font-mono mt-0.5">
-                      الاسم رقم {item.number}
-                    </div>
+                    {item.meaning && (
+                      <p className="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed px-1">
+                        {item.meaning}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-center text-[10px] text-emerald-400/80 font-mono mt-1 pt-1 border-t border-emerald-950/60">
+                    الاسم رقم {item.number}
                   </div>
                 </motion.div>
               );
@@ -407,6 +598,7 @@ export default function AsmaScreen() {
             {filteredNames.map((item) => {
               const isFav = favorites.includes(item.number);
               const isCopied = copiedId === item.number;
+              const isPlaying = playingAudioId === item.number;
 
               return (
                 <motion.div
@@ -418,25 +610,47 @@ export default function AsmaScreen() {
                   {/* Right Accent Sheen */}
                   <div className="absolute top-0 bottom-0 right-0 w-1 bg-gradient-to-b from-transparent via-amber-400/50 to-transparent group-hover:via-amber-400 transition-all" />
 
-                  {/* Right side: Number Badge + Calligraphy Name */}
-                  <div className="flex items-center gap-3 sm:gap-4">
+                  {/* Right side: Number Badge + Calligraphy Name + Meaning */}
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                     <span className="w-8 h-8 rounded-full bg-emerald-950 border border-amber-500/40 text-amber-300 flex items-center justify-center text-xs font-mono font-bold shadow shrink-0">
                       {item.number}
                     </span>
 
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-xl sm:text-2xl font-serif font-bold text-amber-200 group-hover:text-amber-300 transition-colors">
                         {item.name}
                       </div>
-                      <div className="text-[11px] text-emerald-400/80 font-mono">
-                        الاسم رقم {item.number} من أسماء الله الحسنى
-                      </div>
+                      {item.meaning && (
+                        <p className="text-xs text-slate-300 truncate max-w-xl">
+                          {item.meaning}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  {/* Left side: Copy + Favorite Buttons + Arrow */}
+                  {/* Left side: Audio + Copy + Favorite Buttons + Arrow */}
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {item.audio && (
+                      <button
+                        type="button"
+                        onClick={(e) => handlePlayAudio(item, e)}
+                        className={`p-1.5 rounded-xl transition flex items-center justify-center min-w-[32px] min-h-[32px] ${
+                          isPlaying || audioLoadingId === item.number
+                            ? 'text-amber-400 bg-amber-500/20'
+                            : 'text-slate-400 hover:text-amber-300 hover:bg-slate-800'
+                        }`}
+                        title="الاستماع لنطق الاسم"
+                      >
+                        {isPlaying || audioLoadingId === item.number ? (
+                          <MiniLoader size="xs" color="amber" variant="dots" />
+                        ) : (
+                          <Volume2 className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
+
                     <button
+                      type="button"
                       onClick={(e) => handleCopy(item, e)}
                       className="p-1.5 rounded-xl text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition"
                       title="نسخ تفاصيل الاسم"
@@ -445,6 +659,7 @@ export default function AsmaScreen() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={(e) => toggleFavorite(item.number, e)}
                       className={`p-1.5 rounded-xl hover:bg-slate-800 transition ${
                         isFav ? 'text-amber-400' : 'text-slate-400 hover:text-amber-300'
@@ -471,10 +686,10 @@ export default function AsmaScreen() {
         )}
       </div>
 
-      {/* Comprehensive Modal for Name Details & Recitation */}
+      {/* Comprehensive Modal for Name Details, Meaning, Audio & Recitation */}
       <AnimatePresence>
         {selectedName && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -495,13 +710,33 @@ export default function AsmaScreen() {
                       اسم الله: {selectedName.name}
                     </h3>
                     <div className="text-[11px] text-emerald-400 font-mono">
-                      الاسم رقم {selectedName.number}
+                      الاسم رقم {selectedName.number} من أسماء الله الحسنى
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  {selectedName.audio && (
+                    <button
+                      type="button"
+                      onClick={(e) => handlePlayAudio(selectedName, e)}
+                      className={`p-1.5 rounded-xl transition flex items-center justify-center min-w-[36px] min-h-[36px] ${
+                        playingAudioId === selectedName.number || audioLoadingId === selectedName.number
+                          ? 'text-amber-400 bg-amber-500/20'
+                          : 'text-slate-300 hover:text-amber-300 hover:bg-emerald-950/60'
+                      }`}
+                      title="الاستماع لنطق الاسم"
+                    >
+                      {playingAudioId === selectedName.number || audioLoadingId === selectedName.number ? (
+                        <MiniLoader size="sm" color="amber" variant="dots" />
+                      ) : (
+                        <Volume2 className="w-5 h-5 text-amber-400" />
+                      )}
+                    </button>
+                  )}
+
                   <button
+                    type="button"
                     onClick={(e) => toggleFavorite(selectedName.number, e)}
                     className="p-1.5 rounded-xl text-slate-400 hover:text-amber-400 hover:bg-emerald-950/60 transition"
                     title="إضافة للمفضلة"
@@ -510,6 +745,7 @@ export default function AsmaScreen() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setSelectedName(null)}
                     className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-emerald-950/60 transition"
                   >
@@ -519,7 +755,7 @@ export default function AsmaScreen() {
               </div>
 
               {/* Scrollable Content Body */}
-              <div className="flex-1 overflow-y-auto space-y-5 my-4 px-1 scrollbar-thin scrollbar-thumb-emerald-800">
+              <div className="flex-1 overflow-y-auto space-y-4 my-4 px-1 scrollbar-thin scrollbar-thumb-emerald-800">
                 {/* Grand Calligraphy Banner */}
                 <div className="relative rounded-2xl p-6 text-center bg-gradient-to-b from-emerald-950/80 via-slate-900 to-emerald-950/80 border border-amber-500/30 shadow-lg">
                   <div className="text-5xl sm:text-6xl font-serif font-bold text-amber-300 tracking-wider">
@@ -530,6 +766,19 @@ export default function AsmaScreen() {
                   </div>
                 </div>
 
+                {/* Meaning & Explanation Card (from API) */}
+                {selectedName.meaning && (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-emerald-800/60 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-300 font-bold text-xs sm:text-sm">
+                      <BookOpen className="w-4 h-4 text-emerald-400" />
+                      <span>معنى ودلالة هذا الاسم الجليل:</span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-200 leading-relaxed sm:leading-loose text-justify font-serif">
+                      {selectedName.meaning}
+                    </p>
+                  </div>
+                )}
+
                 {/* Interactive Tasbeeh with this Name */}
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-slate-950 to-emerald-950/80 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div>
@@ -537,24 +786,26 @@ export default function AsmaScreen() {
                       <Heart className="w-4 h-4 text-emerald-400" />
                       <span>تسبيح وذكر بهذا الاسم:</span>
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
+                    <div className="text-xs text-slate-300 mt-0.5 font-serif">
                       « يَا {selectedName.name.replace(/^ال/, '')} »
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
                     <button
+                      type="button"
                       onClick={() => setModalCount((c) => c + 1)}
-                      className="flex items-center gap-2 px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition shadow-lg active:scale-95"
+                      className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-sm transition shadow-lg shadow-amber-900/30 active:scale-95"
                     >
                       <span>سبّح</span>
-                      <span className="font-mono bg-black/20 px-2 py-0.5 rounded-lg text-xs">
+                      <span className="font-mono bg-black/30 text-white px-2 py-0.5 rounded-lg text-xs font-bold">
                         {modalCount}
                       </span>
                     </button>
 
                     {modalCount > 0 && (
                       <button
+                        type="button"
                         onClick={() => setModalCount(0)}
                         className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
                         title="إعادة تعيين العداد"
@@ -569,6 +820,7 @@ export default function AsmaScreen() {
               {/* Modal Footer: Prev / Next Buttons & Copy */}
               <div className="mt-2 pt-3 sm:pt-4 border-t border-emerald-900/50 flex items-center justify-between gap-2">
                 <button
+                  type="button"
                   onClick={() => handleNavigateModal(1)}
                   className="flex items-center gap-1 px-3 sm:px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 transition"
                 >
@@ -577,6 +829,7 @@ export default function AsmaScreen() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={(e) => handleCopy(selectedName, e)}
                   className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-emerald-900/70 hover:bg-emerald-800 text-xs text-amber-300 font-semibold border border-emerald-700/50 transition"
                 >
@@ -585,6 +838,7 @@ export default function AsmaScreen() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleNavigateModal(-1)}
                   className="flex items-center gap-1 px-3 sm:px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 transition"
                 >

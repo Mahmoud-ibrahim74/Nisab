@@ -18,6 +18,7 @@ import {
   Star
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
+import Loader from '../components/Loader';
 import { findArabicMatches, normalizeArabic } from '../../utils/arabicNormalizer';
 
 // The 9 Canonical Hadith Books in Resources/Hadiths/
@@ -397,7 +398,7 @@ export default function HadithScreen({ onViewHadithInfo }) {
           <button
             type="submit"
             disabled={isSearching}
-            className="absolute left-2 sm:left-2.5 top-1.5 sm:top-2 px-3 sm:px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow"
+            className="absolute left-2 sm:left-2.5 top-1.5 sm:top-2 px-3 sm:px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs transition shadow-md shadow-amber-900/30"
           >
             {isSearching ? 'جاري البحث...' : 'بحث'}
           </button>
@@ -423,8 +424,8 @@ export default function HadithScreen({ onViewHadithInfo }) {
               }}
               className={`px-3.5 sm:px-4 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm ${
                 activeFilter === 'all'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20'
-                  : 'bg-slate-900/80 hover:bg-emerald-950/80 border border-emerald-900/50 text-slate-300'
+                  ? 'bg-amber-600 text-white font-bold shadow-md shadow-amber-900/30'
+                  : 'bg-slate-900/80 hover:bg-emerald-950/80 border border-emerald-900/50 text-slate-300 hover:text-white'
               }`}
             >
               الكل ({currentBookData?.metadata?.arabic?.title || 'الكتاب الحالي'})
@@ -438,11 +439,11 @@ export default function HadithScreen({ onViewHadithInfo }) {
               }}
               className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm ${
                 activeFilter === 'fav'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20'
-                  : 'bg-slate-900/80 hover:bg-emerald-950/80 border border-emerald-900/50 text-slate-300'
+                  ? 'bg-amber-600 text-white font-bold shadow-md shadow-amber-900/30'
+                  : 'bg-slate-900/80 hover:bg-emerald-950/80 border border-emerald-900/50 text-slate-300 hover:text-white'
               }`}
             >
-              <Star className={`w-3.5 h-3.5 ${activeFilter === 'fav' ? 'fill-slate-950 text-slate-950' : 'text-amber-400'}`} />
+              <Star className={`w-3.5 h-3.5 ${activeFilter === 'fav' ? 'fill-white text-white' : 'text-amber-400'}`} />
               <span>المفضلة ({favorites.length})</span>
             </button>
           </div>
@@ -509,10 +510,7 @@ export default function HadithScreen({ onViewHadithInfo }) {
 
         {/* Hadith Cards Grid/List */}
         {loading ? (
-          <div className="py-20 text-center text-emerald-400">
-            <Sparkles className="w-8 h-8 animate-spin mx-auto mb-2 text-amber-400" />
-            جاري تحميل الأحاديث...
-          </div>
+          <Loader text="جاري تحميل الأحاديث..." />
         ) : (
           <div
             className={

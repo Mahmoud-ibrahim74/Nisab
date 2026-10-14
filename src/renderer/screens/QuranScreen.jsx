@@ -20,12 +20,12 @@ import {
   Moon,
   Info,
   Layers,
-  Compass,
-  BookmarkCheck
+  Compass
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import MiniLoader from '../components/MiniLoader';
-import { useKhatmah } from '../hooks/useKhatmah';
+import BookView, { playRealPageFlipSound } from '../components/BookView';
+import IntroPillToast from '../components/IntroPillToast';
 import { normalizeArabic, findArabicMatches } from '../../utils/arabicNormalizer';
 
 // Convert number to Eastern Arabic numerals (١، ٢، ٣...)
@@ -58,10 +58,6 @@ const INTRO_AUDIO_SESSION_KEY = 'nisab_quran_intro_played_session';
 let hasPlayedIntroThisSession = false;
 
 export default function QuranScreen({ initialTarget, onClearTarget }) {
-  // Khatmah Hook integration
-  const { updateBookmark: updateKhatmahBookmark } = useKhatmah();
-  const [savedKhatmahToast, setSavedKhatmahToast] = useState(false);
-
   // Raw Quran and Surahs Data
   const [surahs, setSurahs] = useState([]);
   const [pagesMap, setPagesMap] = useState({});
@@ -101,7 +97,14 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
   }));
 
   // Theme: 'parchment' (classic ivory Mushaf) | 'night' (royal dark emerald)
-  const [mushafTheme, setMushafTheme] = useState('parchment');
+  const [mushafTheme, setMushafTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('nisab_mushaf_theme');
+      return saved === 'night' ? 'night' : 'parchment';
+    } catch (e) {
+      return 'parchment';
+    }
+  });
 
   // Bookmark Page (saved to disk / localStorage)
   const [bookmarkPage, setBookmarkPage] = useState(() => {
@@ -150,7 +153,25 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
   // Dropdown menus state
   const [surahDropdownOpen, setSurahDropdownOpen] = useState(false);
+  const [surahSearchQuery, setSurahSearchQuery] = useState('');
   const [juzDropdownOpen, setJuzDropdownOpen] = useState(false);
+  const surahDropdownRef = useRef(null);
+  const juzDropdownRef = useRef(null);
+
+  // Close dropdown menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (surahDropdownRef.current && !surahDropdownRef.current.contains(e.target)) {
+        setSurahDropdownOpen(false);
+        setSurahSearchQuery('');
+      }
+      if (juzDropdownRef.current && !juzDropdownRef.current.contains(e.target)) {
+        setJuzDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // 1. Load Quran Raw Data and Index all 604 Standard Pages
   useEffect(() => {
@@ -396,107 +417,20 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
     };
   }, [containerSize]);
 
-  // Physical Paper Flip Sound Synthesizer (Realistic soft paper rustle via Web Audio API)
-  const playPageFlipSound = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const bufferSize = Math.floor(ctx.sampleRate * 0.13);
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.035));
-      }
-      const noise = ctx.createBufferSource();
-      noise.buffer = buffer;
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(1350, ctx.currentTime);
-      filter.Q.setValueAtTime(1.1, ctx.currentTime);
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.13);
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(ctx.destination);
-      noise.start();
-    } catch (e) {}
-  }, []);
-
-  // 3D Realistic Physical Page Turn Variants
-  const rightPageVariants = {
-    initial: (dir) => ({
-      rotateY: dir === 'next' ? 30 : -45,
-      opacity: 0.6,
-      scale: 0.98,
-      filter: 'brightness(0.92)'
-    }),
-    animate: {
-      rotateY: 0,
-      opacity: 1,
-      scale: 1,
-      filter: 'brightness(1)',
-      transition: {
-        duration: 0.52,
-        ease: [0.22, 1, 0.36, 1]
-      }
-    },
-    exit: (dir) => ({
-      rotateY: dir === 'next' ? -50 : 30,
-      opacity: 0,
-      scale: 0.98,
-      filter: 'brightness(0.85)',
-      transition: {
-        duration: 0.42,
-        ease: [0.4, 0, 0.7, 0.2]
-      }
-    })
-  };
-
-  const leftPageVariants = {
-    initial: (dir) => ({
-      rotateY: dir === 'next' ? -45 : 30,
-      opacity: 0.6,
-      scale: 0.98,
-      filter: 'brightness(0.92)'
-    }),
-    animate: {
-      rotateY: 0,
-      opacity: 1,
-      scale: 1,
-      filter: 'brightness(1)',
-      transition: {
-        duration: 0.52,
-        ease: [0.22, 1, 0.36, 1]
-      }
-    },
-    exit: (dir) => ({
-      rotateY: dir === 'next' ? 30 : -50,
-      opacity: 0,
-      scale: 0.98,
-      filter: 'brightness(0.85)',
-      transition: {
-        duration: 0.42,
-        ease: [0.4, 0, 0.7, 0.2]
-      }
-    })
-  };
-
   // Sync last visited page to localStorage with realistic paper flip motion
   const jumpToPage = useCallback(
-    (pageNum, direction = null) => {
+    (pageNum, direction = null, playSound = true) => {
       const valid = Math.max(1, Math.min(604, pageNum));
       if (valid !== currentPage) {
         setTurnDirection(direction || (valid > currentPage ? 'next' : 'prev'));
-        playPageFlipSound();
+        if (playSound) playRealPageFlipSound();
         setCurrentPage(valid);
         try {
           localStorage.setItem('nisab_mushaf_last_page', String(valid));
         } catch (e) {}
       }
     },
-    [currentPage, playPageFlipSound]
+    [currentPage]
   );
 
   // Calculate Starting Pages for each of 114 Surahs
@@ -529,54 +463,24 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
     return map;
   }, [pagesMap]);
 
-  // Open Book Spread: Right Page (Odd) & Left Page (Even)
-  // For spread 0: Page 1 (Right) and Page 2 (Left)
-  const { rightPageNum, leftPageNum } = useMemo(() => {
-    if (currentPage % 2 !== 0) {
-      // Current page is odd: Right is currentPage, Left is currentPage + 1
-      return {
-        rightPageNum: currentPage,
-        leftPageNum: Math.min(604, currentPage + 1)
-      };
-    } else {
-      // Current page is even: Right is currentPage - 1, Left is currentPage
-      return {
-        rightPageNum: Math.max(1, currentPage - 1),
-        leftPageNum: currentPage
-      };
-    }
-  }, [currentPage]);
-
-  // Navigation: Turn Spreads (In RTL Quran, Next goes to higher page numbers)
-  const handleNextSpread = () => {
-    if (leftPageNum < 604) {
-      jumpToPage(leftPageNum + 1, 'next');
-    }
-  };
-
-  const handlePrevSpread = () => {
-    if (rightPageNum > 1) {
-      jumpToPage(rightPageNum - 2, 'prev');
-    }
-  };
-
-  // Keyboard navigation (ArrowLeft = Next spread, ArrowRight = Previous spread)
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Ignore if typing in input
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-      if (e.key === 'ArrowLeft') {
-        handleNextSpread();
-      } else if (e.key === 'ArrowRight') {
-        handlePrevSpread();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  });
-
-  // Bookmark Toggle
+  // Filtered Surahs based on search query in the Surah dropdown
+  const filteredSurahs = useMemo(() => {
+    if (!surahSearchQuery.trim()) return surahs;
+    const rawQ = surahSearchQuery.trim().toLowerCase();
+    const q = normalizeArabic(rawQ).replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+    return surahs.filter((s) => {
+      const normName = normalizeArabic(s.name || '');
+      const cleanName = normName.replace(/^سورة\s+/, '');
+      const numStr = String(s.number);
+      const engName = (s.englishName || '').toLowerCase();
+      return (
+        normName.includes(q) ||
+        cleanName.includes(q) ||
+        numStr === q ||
+        engName.includes(rawQ)
+      );
+    });
+  }, [surahs, surahSearchQuery]);
   const handleToggleBookmark = () => {
     if (bookmarkPage === currentPage) {
       setBookmarkPage(null);
@@ -802,35 +706,51 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
   const themeClasses = useMemo(() => {
     if (mushafTheme === 'night') {
       return {
+        colorScheme: 'dark',
         bookBorder: 'border-[#0a2f26] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9),0_0_35px_rgba(16,185,129,0.15)]',
-        pageBg: 'bg-gradient-to-b from-[#021a14] via-[#032019] to-[#01140e] text-[#fde68a]',
+        pageBg: 'bg-gradient-to-b from-[#021a14] via-[#032019] to-[#01140e]',
+        pageBgColor: '#021a14',
         ornamentBorder: 'border-amber-600/50',
         innerBorder: 'border-amber-500/30',
         headerText: 'text-amber-400',
+        headerTextColor: '#fbbf24',
         pageNumberText: 'text-amber-300',
+        pageNumberTextColor: '#fcd34d',
         surahBannerBg: 'bg-gradient-to-r from-amber-600/20 via-amber-500/30 to-amber-600/20 border-amber-500/50',
         surahBannerText: 'text-amber-300',
+        surahBannerTextColor: '#fcd34d',
         basmalahText: 'text-amber-200',
+        basmalahTextColor: '#fde68a',
         ayahText: 'text-[#fef3c7]',
+        ayahTextColor: '#fef3c7',
         ayahActiveBg: 'bg-amber-400/25 ring-1 ring-amber-400',
         ayahEndMark: 'text-amber-400 font-bold',
+        ayahEndMarkColor: '#fbbf24',
         spineGradient: 'from-black/50 via-black/20 to-black/50'
       };
     }
     // Default: Parchment / Ivory Classic King Fahd Mushaf
     return {
+      colorScheme: 'light',
       bookBorder: 'border-[#1b3d33] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8),0_0_35px_rgba(217,119,6,0.2)]',
-      pageBg: 'bg-gradient-to-b from-[#fefcf8] via-[#fbf7ee] to-[#f7f2e4] text-[#1c2e28]',
+      pageBg: 'bg-gradient-to-b from-[#fefcf8] via-[#fbf7ee] to-[#f7f2e4]',
+      pageBgColor: '#fefcf8',
       ornamentBorder: 'border-[#c59b27]/60',
       innerBorder: 'border-[#c59b27]/30',
       headerText: 'text-[#8a6514]',
+      headerTextColor: '#8a6514',
       pageNumberText: 'text-[#8a6514]',
+      pageNumberTextColor: '#8a6514',
       surahBannerBg: 'bg-gradient-to-r from-[#d4af37]/15 via-[#d4af37]/25 to-[#d4af37]/15 border-[#b8860b]/60',
       surahBannerText: 'text-[#7a570f]',
+      surahBannerTextColor: '#7a570f',
       basmalahText: 'text-[#7a570f]',
+      basmalahTextColor: '#7a570f',
       ayahText: 'text-[#1c2e28]',
+      ayahTextColor: '#1c2e28',
       ayahActiveBg: 'bg-amber-300/40 ring-1 ring-amber-500',
       ayahEndMark: 'text-[#a2781a] font-bold',
+      ayahEndMarkColor: '#a2781a',
       spineGradient: 'from-black/35 via-black/10 to-black/35'
     };
   }, [mushafTheme]);
@@ -871,20 +791,15 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
     return (
       <div
+        style={{
+          colorScheme: themeClasses.colorScheme,
+          backgroundColor: themeClasses.pageBgColor,
+          color: themeClasses.ayahTextColor
+        }}
         className={`relative flex-1 h-full flex flex-col justify-between overflow-hidden select-none ${themeClasses.pageBg} ${
           side === 'right' ? 'rounded-r-2xl border-l border-amber-900/10' : 'rounded-l-2xl border-r border-amber-900/10'
         }`}
       >
-        {/* Realistic Silk Ribbon Bookmark */}
-        {isBookmarkOnThisPage && (
-          <div
-            className="absolute top-0 right-8 z-30 w-5 h-14 bg-gradient-to-b from-rose-600 via-rose-700 to-rose-800 shadow-lg flex items-end justify-center pb-1 text-white font-bold"
-            title="علامة القراءة المحفوظة"
-          >
-            <Bookmark className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-          </div>
-        )}
-
         {/* Outer Ornamental Golden Border */}
         <div
           className={`relative m-1.5 sm:m-2.5 flex-1 flex flex-col justify-between border-2 ${
@@ -903,7 +818,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
             {/* Page Header (Surah name & Juz / Hizb) */}
             <div
-              className={`flex items-center justify-between pb-1 mb-1.5 border-b ${themeClasses.innerBorder} select-none text-[11px] sm:text-xs font-quran-hafs font-bold ${themeClasses.headerText}`}
+              style={{ color: themeClasses.headerTextColor }}
+              className={`flex items-center justify-between pb-1 mb-1.5 border-b ${themeClasses.innerBorder} select-none text-[11px] sm:text-xs font-quran-hafs font-bold`}
             >
               {side === 'right' ? (
                 <>
@@ -934,8 +850,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       >
                         <span className="text-amber-500 font-quran-hafs text-xs">۞</span>
                         <h3
-                          style={{ fontSize: surahTitleFontSize }}
-                          className={`font-quran-hafs font-bold ${themeClasses.surahBannerText}`}
+                          style={{ fontSize: surahTitleFontSize, color: themeClasses.surahBannerTextColor }}
+                          className="font-quran-hafs font-bold"
                         >
                           {group.surahName}
                         </h3>
@@ -945,8 +861,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       {/* Basmalah (omitted for Surah 1 & Surah 9 At-Tawbah) */}
                       {group.surahNumber !== 1 && group.surahNumber !== 9 && (
                         <div
-                          style={{ fontSize: basmalahFontSize }}
-                          className={`text-center font-quran-hafs font-bold my-1 tracking-wider select-none ${themeClasses.basmalahText}`}
+                          style={{ fontSize: basmalahFontSize, color: themeClasses.basmalahTextColor }}
+                          className="text-center font-quran-hafs font-bold my-1 tracking-wider select-none"
                         >
                           بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
                         </div>
@@ -960,9 +876,10 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       fontSize: ayahFontSize,
                       lineHeight: ayahLineHeight,
                       textAlign: 'justify',
-                      textJustify: 'inter-word'
+                      textJustify: 'inter-word',
+                      color: themeClasses.ayahTextColor
                     }}
-                    className={`font-quran-hafs text-justify tracking-normal select-none ${themeClasses.ayahText}`}
+                    className="font-quran-hafs text-justify tracking-normal select-none"
                   >
                     {group.ayahs.map((ayah) => {
                       const isSelected = activeAya?.number === ayah.number;
@@ -987,9 +904,10 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                           }`}
                           title={`انقر لاختيار الآية [${ayah.surahName}: ${ayah.numberInSurah}]`}
                         >
-                          <span>{cleanText}</span>
+                          <span style={{ color: themeClasses.ayahTextColor }}>{cleanText}</span>
                           <span
-                            className={`inline-block mx-1 font-quran-hafs select-none ${themeClasses.ayahEndMark}`}
+                            style={{ color: themeClasses.ayahEndMarkColor }}
+                            className="inline-block mx-1 font-quran-hafs font-bold select-none"
                           >
                             ﴿{toEasternArabic(ayah.numberInSurah)}﴾
                           </span>
@@ -1012,10 +930,11 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       e.stopPropagation();
                       handleCopyPage(pageNum);
                     }}
+                    style={{ color: copiedPageNum === pageNum ? undefined : themeClasses.headerTextColor }}
                     className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border text-[10px] sm:text-[11px] font-sans font-medium transition-all shadow-sm ${
                       copiedPageNum === pageNum
                         ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold'
-                        : `${themeClasses.innerBorder} ${themeClasses.headerText} hover:bg-amber-500/15 hover:border-amber-500/50 hover:text-amber-600`
+                        : `${themeClasses.innerBorder} hover:bg-amber-500/15 hover:border-amber-500/50 hover:text-amber-600`
                     }`}
                     title="نسخ نص هذه الصفحة بالكامل إلى الحافظة"
                   >
@@ -1032,7 +951,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                     )}
                   </button>
                   <div
-                    className={`flex items-center justify-center px-3 py-0.5 rounded-full border ${themeClasses.innerBorder} font-quran-hafs font-bold text-xs sm:text-sm ${themeClasses.pageNumberText} shadow-sm`}
+                    style={{ color: themeClasses.pageNumberTextColor }}
+                    className={`flex items-center justify-center px-3 py-0.5 rounded-full border ${themeClasses.innerBorder} font-quran-hafs font-bold text-xs sm:text-sm shadow-sm`}
                   >
                     <span>{toEasternArabic(pageNum)}</span>
                   </div>
@@ -1042,7 +962,8 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                 <>
                   <div className="w-16 sm:w-20" />
                   <div
-                    className={`flex items-center justify-center px-3 py-0.5 rounded-full border ${themeClasses.innerBorder} font-quran-hafs font-bold text-xs sm:text-sm ${themeClasses.pageNumberText} shadow-sm`}
+                    style={{ color: themeClasses.pageNumberTextColor }}
+                    className={`flex items-center justify-center px-3 py-0.5 rounded-full border ${themeClasses.innerBorder} font-quran-hafs font-bold text-xs sm:text-sm shadow-sm`}
                   >
                     <span>{toEasternArabic(pageNum)}</span>
                   </div>
@@ -1051,10 +972,11 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
                       e.stopPropagation();
                       handleCopyPage(pageNum);
                     }}
+                    style={{ color: copiedPageNum === pageNum ? undefined : themeClasses.headerTextColor }}
                     className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border text-[10px] sm:text-[11px] font-sans font-medium transition-all shadow-sm ${
                       copiedPageNum === pageNum
                         ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold'
-                        : `${themeClasses.innerBorder} ${themeClasses.headerText} hover:bg-amber-500/15 hover:border-amber-500/50 hover:text-amber-600`
+                        : `${themeClasses.innerBorder} hover:bg-amber-500/15 hover:border-amber-500/50 hover:text-amber-600`
                     }`}
                     title="نسخ نص هذه الصفحة بالكامل إلى الحافظة"
                   >
@@ -1088,34 +1010,19 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
       <ArabesquePattern className="opacity-10 text-emerald-500 pointer-events-none" />
 
       {/* Visual notification badge when playing the intro Ayah */}
-      <AnimatePresence>
-        {showIntroPill && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 border border-amber-500/60 text-amber-300 shadow-2xl flex items-center gap-3 backdrop-blur-xl pointer-events-none"
-          >
-            <Volume2 className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
-            <span className="font-serif font-bold text-sm sm:text-base text-amber-200">
-              ﴿ وَرَتِّلِ الْقُرْآنَ تَرْتِيلًا ﴾
-            </span>
-            <span className="text-[10px] text-emerald-400 font-sans border-r border-emerald-800 pr-2.5">
-              سورة المزمل
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <IntroPillToast show={showIntroPill} />
 
       {/* Top Quran Bar: Navigation, Surah/Juz Pickers, Search, Audio & Themes */}
       <header className="relative z-20 border-b border-emerald-900/50 bg-slate-950/90 backdrop-blur-md px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-xl shrink-0">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Surah Selector Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={surahDropdownRef}>
             <button
               onClick={() => {
-                setSurahDropdownOpen(!surahDropdownOpen);
+                const nextOpen = !surahDropdownOpen;
+                setSurahDropdownOpen(nextOpen);
                 setJuzDropdownOpen(false);
+                if (!nextOpen) setSurahSearchQuery('');
               }}
               className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:py-2 rounded-xl bg-emerald-950/70 border border-emerald-700/50 hover:border-amber-400 text-amber-300 font-bold text-xs sm:text-sm shadow transition"
               title="الانتقال إلى سورة محددة"
@@ -1124,35 +1031,74 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
               <span>
                 {pagesMap[currentPage]?.surahs?.[0]?.name || 'السورة'}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${surahDropdownOpen ? 'rotate-180 text-amber-300' : ''}`} />
             </button>
 
             {surahDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-72 max-h-80 overflow-y-auto bg-slate-900 border border-emerald-800 rounded-2xl shadow-2xl p-2 z-50 divide-y divide-emerald-900/30 scrollbar-thin scrollbar-thumb-emerald-700">
-                {surahs.map((s) => (
-                  <button
-                    key={s.number}
-                    onClick={() => {
+              <div
+                className="absolute right-0 mt-2 w-72 max-h-96 flex flex-col bg-slate-900/98 backdrop-blur-xl border border-emerald-700/60 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Search Bar Header */}
+                <div className="p-2 border-b border-emerald-900/60 bg-slate-950/70 sticky top-0 z-10">
+                  <div className="relative flex items-center">
+                    <Search className="w-3.5 h-3.5 text-emerald-400 absolute right-2.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={surahSearchQuery}
+                      onChange={(e) => setSurahSearchQuery(e.target.value)}
+                      placeholder="ابحث عن اسم السورة أو رقمها..."
+                      autoFocus
+                      className="w-full bg-slate-900 border border-emerald-800/80 rounded-xl pr-8 pl-7 py-1.5 text-xs text-amber-200 placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
+                    />
+                    {surahSearchQuery && (
+                      <button
+                        onClick={() => setSurahSearchQuery('')}
+                        className="absolute left-2 text-slate-400 hover:text-slate-200 p-0.5 rounded transition"
+                        title="مسح البحث"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Surahs Scrollable List */}
+                <div className="p-1.5 overflow-y-auto max-h-72 divide-y divide-emerald-900/30 scrollbar-thin scrollbar-thumb-emerald-700">
+                  {filteredSurahs.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">
+                      لا توجد سورة تطابق "{surahSearchQuery}"
+                    </div>
+                  ) : (
+                    filteredSurahs.map((s) => {
                       const startP = surahStartPages[s.number] || 1;
-                      jumpToPage(startP);
-                      setSurahDropdownOpen(false);
-                    }}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-right hover:bg-emerald-950/80 text-xs sm:text-sm transition text-slate-200 hover:text-amber-300"
-                  >
-                    <span>
-                      {s.number}. {s.name}
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-400">
-                      ص {toEasternArabic(surahStartPages[s.number])}
-                    </span>
-                  </button>
-                ))}
+                      return (
+                        <button
+                          key={s.number}
+                          onClick={() => {
+                            jumpToPage(startP);
+                            setSurahDropdownOpen(false);
+                            setSurahSearchQuery('');
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-right hover:bg-emerald-950/80 text-xs sm:text-sm transition text-slate-200 hover:text-amber-300 group"
+                        >
+                          <span className="font-semibold group-hover:text-amber-300">
+                            {s.number}. {s.name}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-400 group-hover:text-emerald-400">
+                            ص {toEasternArabic(startP)}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
           </div>
 
           {/* Juz Selector Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={juzDropdownRef}>
             <button
               onClick={() => {
                 setJuzDropdownOpen(!juzDropdownOpen);
@@ -1208,14 +1154,26 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
           {/* Bookmark Button */}
           <button
             onClick={handleToggleBookmark}
+            style={
+              bookmarkPage === currentPage
+                ? {
+                    backgroundColor: 'rgba(153, 27, 27, 0.4)',
+                    borderColor: '#ef4444',
+                    color: '#fca5a5'
+                  }
+                : undefined
+            }
             className={`flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl border text-xs sm:text-sm font-semibold transition ${
               bookmarkPage === currentPage
-                ? 'bg-rose-950/80 border-rose-500 text-rose-300 shadow'
+                ? 'shadow shadow-red-950/40'
                 : 'bg-slate-900 border-emerald-900/60 text-slate-300 hover:text-amber-300'
             }`}
             title={bookmarkPage === currentPage ? 'إزالة الفاصل المرجعي' : 'حفظ فاصل القراءة في هذه الصفحة'}
           >
-            <Bookmark className={`w-3.5 h-3.5 ${bookmarkPage === currentPage ? 'fill-rose-400 text-rose-400' : ''}`} />
+            <Bookmark
+              style={bookmarkPage === currentPage ? { fill: '#ef4444', color: '#ef4444' } : undefined}
+              className="w-3.5 h-3.5"
+            />
             <span>{bookmarkPage === currentPage ? 'محفوظة' : 'فاصل'}</span>
           </button>
 
@@ -1244,7 +1202,13 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
           {/* Theme Mode Toggle (Parchment vs Night Emerald) */}
           <button
-            onClick={() => setMushafTheme(mushafTheme === 'parchment' ? 'night' : 'parchment')}
+            onClick={() => {
+              const nextTheme = mushafTheme === 'parchment' ? 'night' : 'parchment';
+              setMushafTheme(nextTheme);
+              try {
+                localStorage.setItem('nisab_mushaf_theme', nextTheme);
+              } catch (e) {}
+            }}
             className="p-2 rounded-xl bg-slate-900 border border-emerald-900/60 hover:border-amber-400 text-slate-300 hover:text-amber-300 transition shadow"
             title={mushafTheme === 'parchment' ? 'تفعيل الوضع الليلي للمصحف' : 'تفعيل لون الورق العاجي للمصحف'}
           >
@@ -1253,104 +1217,19 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
         </div>
       </header>
 
-      {/* Main Standard Mushaf Reader (604 Pages / Standard Aspect Ratio Book) */}
-      <main
-        ref={mainContainerRef}
-        className="relative flex-1 w-full max-w-[1700px] mx-auto p-2 sm:p-4 flex items-center justify-center overflow-hidden"
-      >
-        {loading ? (
-          <div className="text-center py-24 text-amber-400">
-            <Sparkles className="w-10 h-10 animate-spin mx-auto mb-3" />
-            <div className="font-serif text-lg">جاري فتح المصحف الشريف...</div>
-          </div>
-        ) : (
-          <div className="relative w-full h-full flex items-center justify-center">
-            {/* Previous Spread Turn Button (Right Side in RTL) */}
-            <motion.button
-              whileHover={{ scale: 1.15, x: 3 }}
-              whileTap={{ scale: 0.9, x: -1 }}
-              onClick={handlePrevSpread}
-              disabled={rightPageNum <= 1}
-              className="absolute right-0 sm:right-2 z-30 p-2.5 sm:p-3.5 rounded-full bg-slate-900/90 hover:bg-emerald-950 border border-amber-500/50 text-amber-300 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all shadow-2xl backdrop-blur-md flex items-center justify-center group"
-              title="الصفحة السابقة (تقليب الورقة بالسهم)"
-            >
-              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110" />
-            </motion.button>
-
-            {/* The Realistic Open Mushaf Book (كتاب مفتوح ذو ارتفاع مصحف قياسي) */}
-            <div
-              style={{
-                aspectRatio: '1.41 / 1',
-                maxHeight: '100%',
-                maxWidth: '100%',
-                perspective: '2200px'
-              }}
-              className={`relative h-full flex rounded-3xl border-[6px] sm:border-[8px] ${themeClasses.bookBorder} overflow-hidden shadow-2xl transition-all mx-auto`}
-            >
-              {/* Right Page (Odd numbers: 1, 3, 5...) with 3D Page Turn */}
-              <div className="flex-1 h-full relative overflow-hidden" style={{ perspective: '1800px' }}>
-                <AnimatePresence mode="popLayout" custom={turnDirection}>
-                  <motion.div
-                    key={`page-right-${rightPageNum}`}
-                    custom={turnDirection}
-                    variants={rightPageVariants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      transformOrigin: 'left center',
-                      transformStyle: 'preserve-3d'
-                    }}
-                  >
-                    {renderMushafPage(rightPageNum, 'right')}
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-
-              {/* Central Spine 3D Crease Shadow (طية كعب المصحف المفتوح) */}
-              <div
-                className={`w-3 sm:w-5 h-full shrink-0 bg-gradient-to-r ${themeClasses.spineGradient} shadow-inner pointer-events-none z-20`}
-              />
-
-              {/* Left Page (Even numbers: 2, 4, 6...) with 3D Page Turn */}
-              <div className="flex-1 h-full relative overflow-hidden" style={{ perspective: '1800px' }}>
-                <AnimatePresence mode="popLayout" custom={turnDirection}>
-                  <motion.div
-                    key={`page-left-${leftPageNum}`}
-                    custom={turnDirection}
-                    variants={leftPageVariants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      transformOrigin: 'right center',
-                      transformStyle: 'preserve-3d'
-                    }}
-                  >
-                    {renderMushafPage(leftPageNum, 'left')}
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-            </div>
-
-            {/* Next Spread Turn Button (Left Side in RTL) */}
-            <motion.button
-              whileHover={{ scale: 1.15, x: -3 }}
-              whileTap={{ scale: 0.9, x: 1 }}
-              onClick={handleNextSpread}
-              disabled={leftPageNum >= 604}
-              className="absolute left-0 sm:left-2 z-30 p-2.5 sm:p-3.5 rounded-full bg-slate-900/90 hover:bg-emerald-950 border border-amber-500/50 text-amber-300 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all shadow-2xl backdrop-blur-md flex items-center justify-center group"
-              title="الصفحة التالية (تقليب الورقة بالسهم)"
-            >
-              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110" />
-            </motion.button>
-          </div>
-        )}
-      </main>
+      {/* BookView Reader (Dual-Page Open Book with 3D Page Flip Animation) */}
+      <BookView
+        totalPages={604}
+        currentPage={currentPage}
+        onPageChange={(newPage, dir) => jumpToPage(newPage, dir, false)}
+        renderPage={(pageNum, side) => renderMushafPage(pageNum, side)}
+        loading={loading}
+        loadingMessage="جاري فتح المصحف الشريف..."
+        theme={themeClasses}
+        bookmarkPage={bookmarkPage}
+        onToggleBookmark={handleToggleBookmark}
+        containerRef={mainContainerRef}
+      />
 
       {/* Floating Selected Ayah Action Pill */}
       <AnimatePresence>
@@ -1359,21 +1238,21 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 15 }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-xl flex items-center gap-3 text-xs sm:text-sm select-none"
+            className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 w-auto min-w-[480px] sm:min-w-[540px] max-w-[94vw] px-5 sm:px-6 py-3 rounded-2xl bg-slate-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-xl flex items-center justify-between gap-3 sm:gap-4 text-xs sm:text-sm select-none"
           >
-            <div className="font-serif text-amber-300 font-bold border-l border-emerald-800/80 pl-3">
+            <div className="font-serif text-amber-300 font-bold border-l border-emerald-800/80 pl-3.5 sm:pl-4 text-sm sm:text-base shrink-0">
               {activeAya.surahName} : {activeAya.numberInSurah}
             </div>
 
             {/* الاستماع للآية Button */}
             <button
               onClick={() => playAyaAudio(activeAya)}
-              className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 min-w-[115px] rounded-xl font-bold transition shadow ${
+              className={`flex items-center justify-center gap-2 px-4 py-2 min-w-[130px] rounded-xl font-bold transition shadow-lg text-white ${
                 isAudioLoading && playingAyaGlobalNum === activeAya.number
-                  ? 'bg-amber-500/90 text-slate-950'
+                  ? 'bg-amber-600'
                   : playingAyaGlobalNum === activeAya.number && isPlaying
-                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950'
-                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                  ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-900/30'
+                  : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-900/30'
               }`}
               title={
                 isAudioLoading && playingAyaGlobalNum === activeAya.number
@@ -1384,15 +1263,15 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
               }
             >
               {isAudioLoading && playingAyaGlobalNum === activeAya.number ? (
-                <MiniLoader size="sm" color="current" />
+                <MiniLoader size="sm" color="white" />
               ) : playingAyaGlobalNum === activeAya.number && isPlaying ? (
                 <>
-                  <Pause className="w-3.5 h-3.5" />
+                  <Pause className="w-4 h-4 text-white" />
                   <span>إيقاف</span>
                 </>
               ) : (
                 <>
-                  <Volume2 className="w-3.5 h-3.5" />
+                  <Volume2 className="w-4 h-4 text-white" />
                   <span>الاستماع للآية</span>
                 </>
               )}
@@ -1400,46 +1279,30 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
             {/* Tafseer Button */}
             <button
+              type="button"
               onClick={() => handleOpenTafseer(activeAya)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 transition"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-emerald-950 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 font-semibold transition"
             >
-              <Info className="w-3.5 h-3.5" />
+              <Info className="w-4 h-4" />
               <span>التفسير</span>
-            </button>
-
-            {/* Save as Khatmah Bookmark Button */}
-            <button
-              onClick={async () => {
-                if (activeAya) {
-                  await updateKhatmahBookmark({
-                    page: activeAya.page || currentPage,
-                    surahId: activeAya.surahNumber,
-                    ayahNumber: activeAya.numberInSurah
-                  });
-                  setSavedKhatmahToast(true);
-                  setTimeout(() => setSavedKhatmahToast(false), 2000);
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-semibold transition"
-              title="حفظ موضع هذه الآية كعلامة توقف في خطة الختمة"
-            >
-              <BookmarkCheck className="w-3.5 h-3.5 text-amber-400" />
-              <span>{savedKhatmahToast ? 'تم الحفظ في الختمة' : 'علامة الختمة'}</span>
             </button>
 
             {/* Copy Button */}
             <button
+              type="button"
               onClick={() => handleCopyAya(activeAya)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition font-medium"
             >
-              {copiedAya ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedAya ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               <span>{copiedAya ? 'تم النسخ' : 'نسخ'}</span>
             </button>
 
             {/* Dismiss */}
             <button
+              type="button"
               onClick={() => setActiveAya(null)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0"
+              title="إغلاق"
             >
               <X className="w-4 h-4" />
             </button>

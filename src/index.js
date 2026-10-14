@@ -1,8 +1,11 @@
-const { app, BrowserWindow, Menu, MenuItem, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, MenuItem } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { registerIpcHandlers } = require('./main/ipcHandlers');
 const { setupNativeNotifier } = require('./main/nativeNotifier');
+
+// Enforce consistent Dark Theme across all Windows versions (Win 10 & Win 11)
+nativeTheme.themeSource = 'dark';
 
 // Set application name and Application User Model ID for Windows Taskbar, Notifications, and Task Manager
 const APP_ID = 'Nisab';

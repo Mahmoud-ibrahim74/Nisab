@@ -13,14 +13,20 @@ import {
   Calendar,
   Radio,
   BookmarkCheck,
-  Coins
+  Coins,
+  Award,
+  Library,
+  Landmark
 } from 'lucide-react';
 import DashboardScreen from './screens/DashboardScreen';
 import QuranScreen from './screens/QuranScreen';
 import KhatmahTrackerScreen from './screens/KhatmahTrackerScreen';
+import BooksScreen from './screens/BooksScreen';
 import ZakatCalculatorScreen from './screens/ZakatCalculatorScreen';
 import HadithScreen from './screens/HadithScreen';
 import HadithInfoScreen from './screens/HadithInfoScreen';
+import IslamicHistoryScreen from './screens/IslamicHistoryScreen';
+import IslamicQuizzesScreen from './screens/IslamicQuizzesScreen';
 import AzkarScreen from './screens/AzkarScreen';
 import RoqiaScreen from './screens/RoqiaScreen';
 import AsmaScreen from './screens/AsmaScreen';
@@ -35,8 +41,10 @@ const TABS = [
   { id: 'dashboard', label: 'الرئيسية', icon: Home },
   { id: 'quran', label: 'القرآن الكريم', icon: BookOpen },
   { id: 'khatmah', label: 'متابعة الختمة', icon: BookmarkCheck },
-  { id: 'zakat', label: 'حاسبة الزكاة', icon: Coins },
+  { id: 'zakat', label: 'حاسبة الزكاة', icon: Coins, badge: 'نِصاب' },
   { id: 'hadith', label: 'الحديث الشريف', icon: Scroll },
+  { id: 'history', label: 'التاريخ الإسلامي', icon: Landmark, badge: '6.1K' },
+  { id: 'quizzes', label: 'المسابقات الإسلامية', icon: Award, badge: '5.8K' },
   { id: 'azkar', label: 'الأذكار', icon: Heart },
   { id: 'roqia', label: 'الرقية الشرعية', icon: ShieldCheck },
   { id: 'asma', label: 'أسماء الله الحسنى', icon: Sparkles },
@@ -283,6 +291,48 @@ export default function App() {
                 hadithData={hadithInfoData}
                 onBack={() => setActiveTab('hadith')}
               />
+            </motion.div>
+          )}
+
+          {activeTab === 'history' && (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ width: '100%', height: '100%', minWidth: 0 }}
+              className="h-full w-full min-w-0"
+            >
+              <IslamicHistoryScreen onBack={() => setActiveTab('dashboard')} />
+            </motion.div>
+          )}
+
+          {activeTab === 'books' && (
+            <motion.div
+              key="books"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ width: '100%', height: '100%', minWidth: 0 }}
+              className="h-full w-full min-w-0"
+            >
+              <BooksScreen onNavigate={(screen) => setActiveTab(screen)} />
+            </motion.div>
+          )}
+
+          {activeTab === 'quizzes' && (
+            <motion.div
+              key="quizzes"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ width: '100%', height: '100%', minWidth: 0 }}
+              className="h-full w-full min-w-0"
+            >
+              <IslamicQuizzesScreen onNavigate={(screen) => setActiveTab(screen)} />
             </motion.div>
           )}
 

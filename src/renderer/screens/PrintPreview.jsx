@@ -74,12 +74,17 @@ function getPrintSlices(fullText, highlights, includeHighlights) {
 
 export default function PrintPreview({
   hadith,
+  itemsList = null,
+  allItemsList = null,
   bookTitle = 'ديوان الحديث الشريف',
   bookAuthor = '',
   chapterName = '',
   highlights = [],
   onClose
 }) {
+  const isMultiItem = Boolean(itemsList && itemsList.length > 0);
+  const [printScope, setPrintScope] = useState('displayed'); // 'displayed' | 'all'
+
   // Print Customization State
   const [zoomLevel, setZoomLevel] = useState(100); // 80, 100, 120
   const [printFontSize, setPrintFontSize] = useState('medium'); // 'small' (16px), 'medium' (20px), 'large' (24px)
@@ -105,10 +110,62 @@ export default function PrintPreview({
     }
   }, []);
 
-  // Compute text slices with highlights
+  // Effective items depending on printScope
+  const effectiveItems = useMemo(() => {
+    if (!isMultiItem) return [];
+    if (printScope === 'all' && allItemsList && allItemsList.length > 0) {
+      return allItemsList;
+    }
+    return itemsList || [];
+  }, [isMultiItem, printScope, allItemsList, itemsList]);
+
+  // Group highlights by itemId
+  const highlightsByItemId = useMemo(() => {
+    const map = {};
+    for (let i = 0; i < highlights.length; i++) {
+      const h = highlights[i];
+      const key = h.itemId ? String(h.itemId) : 'single';
+      if (!map[key]) map[key] = [];
+      map[key].push(h);
+    }
+    return map;
+  }, [highlights]);
+
+  // Multi-item prepared events with slices
+  const preparedItems = useMemo(() => {
+    if (!isMultiItem || !effectiveItems) return [];
+    return effectiveItems.map((item, idx) => {
+      const itemId = String(item.idInBook || item.id || idx + 1);
+      const itemTitle = item.title || '';
+      const itemText = item.text || item.arabic || '';
+      const itemDates = Array.isArray(item.date) ? item.date : (item.date ? [item.date] : []);
+
+      const itemHls = highlightsByItemId[itemId] || [];
+      const textHls = itemHls.filter((h) => !h.field || h.field === 'text');
+      const titleHls = itemHls.filter((h) => h.field === 'title');
+
+      const textSlices = getPrintSlices(itemText, textHls, includeHighlights);
+      const titleSlices = getPrintSlices(itemTitle, titleHls, includeHighlights);
+
+      return {
+        item,
+        itemId,
+        itemTitle,
+        itemText,
+        itemDates,
+        textSlices,
+        titleSlices,
+        hasHighlights: itemHls.length > 0
+      };
+    });
+  }, [isMultiItem, effectiveItems, highlightsByItemId, includeHighlights]);
+
+  // Single-item slices fallback
   const slices = useMemo(() => {
-    return getPrintSlices(hadith?.arabic || '', highlights, includeHighlights);
-  }, [hadith?.arabic, highlights, includeHighlights]);
+    if (isMultiItem) return [];
+    const singleHls = highlightsByItemId['single'] || highlights;
+    return getPrintSlices(hadith?.arabic || hadith?.text || '', singleHls, includeHighlights);
+  }, [isMultiItem, hadith, highlightsByItemId, highlights, includeHighlights]);
 
   // Font size mapping for preview and print
   const fontSizeStyle = useMemo(() => {
@@ -169,10 +226,10 @@ export default function PrintPreview({
             type="button"
             onClick={onClose}
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition text-xs sm:text-sm font-semibold"
-            title="إغلاق المعاينة والرجوع إلى الحديث الشريف"
+            title="إغلاق المعاينة والرجوع"
           >
             <ArrowRight className="w-4 h-4 text-amber-400" />
-            <span>رجوع للحديث</span>
+            <span>{isMultiItem ? 'رجوع للموسوعة' : 'رجوع للحديث'}</span>
           </button>
 
           <div className="h-5 w-px bg-slate-800 hidden sm:block" />
@@ -180,7 +237,7 @@ export default function PrintPreview({
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-amber-400" />
             <h2 className="text-sm sm:text-base font-bold text-slate-100 font-serif">
-              معاينة الطباعة • {bookTitle} (#{hadith?.idInBook || hadith?.id})
+              معاينة الطباعة • {bookTitle} {isMultiItem ? `(${preparedItems.length} حدث)` : (hadith?.idInBook || hadith?.id ? `(#${hadith?.idInBook || hadith?.id})` : '')}
             </h2>
           </div>
         </div>
@@ -210,7 +267,7 @@ export default function PrintPreview({
             ) : (
               <>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>جاهز للطباعة (Ready)</span>
+                <span>جاهز للطباعة ({isMultiItem ? `${preparedItems.length} حدث` : 'ورقة A4'})</span>
               </>
             )}
           </div>
@@ -220,18 +277,18 @@ export default function PrintPreview({
             type="button"
             onClick={handleExecutePrint}
             disabled={printStatus === 'printing'}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-amber-500/20 active:scale-95 transition"
+            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs sm:text-sm shadow-lg shadow-amber-900/30 active:scale-95 transition"
             title="فتح نافذة الطابعة وبدء الطباعة الفعلية"
           >
             {printStatus === 'printing' ? (
               <>
-                <MiniLoader size="xs" color="current" />
+                <MiniLoader size="xs" color="white" />
                 <span>جاري الطباعة...</span>
               </>
             ) : (
               <>
-                <Printer className="w-4 h-4 text-slate-950" />
-                <span>طباعة الآن</span>
+                <Printer className="w-4 h-4 text-white" />
+                <span>طباعة الآن ({isMultiItem ? `${preparedItems.length} حدث` : 'ورقة A4'})</span>
               </>
             )}
           </button>
@@ -266,6 +323,52 @@ export default function PrintPreview({
             </p>
           </div>
 
+          {/* Multi-Item Print Scope Selector */}
+          {isMultiItem && allItemsList && allItemsList.length > (itemsList?.length || 0) && (
+            <div className="space-y-2">
+              <label className="font-bold text-slate-300 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                <span>نطاق طباعة الأحداث:</span>
+              </label>
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-950 border border-emerald-900/60">
+                <button
+                  type="button"
+                  onClick={() => setPrintScope('displayed')}
+                  className={`py-2 px-2 rounded-lg text-center font-semibold text-xs transition ${
+                    printScope === 'displayed'
+                      ? 'bg-amber-600 text-white shadow font-bold'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  المعروضة ({itemsList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintScope('all')}
+                  className={`py-2 px-2 rounded-lg text-center font-semibold text-xs transition ${
+                    printScope === 'all'
+                      ? 'bg-amber-600 text-white shadow font-bold'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  الكل ({allItemsList.length})
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isMultiItem && (!allItemsList || allItemsList.length <= (itemsList?.length || 0)) && (
+            <div className="p-3 rounded-xl bg-slate-950 border border-emerald-900/60 flex items-center justify-between">
+              <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                <span>أحداث للطباعة:</span>
+              </span>
+              <span className="font-mono text-amber-300 font-bold bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                {preparedItems.length} حدث
+              </span>
+            </div>
+          )}
+
           {/* Font Size Configuration */}
           <div className="space-y-2">
             <label className="font-bold text-slate-300 flex items-center gap-1.5">
@@ -284,8 +387,8 @@ export default function PrintPreview({
                   onClick={() => setPrintFontSize(item.id)}
                   className={`py-1.5 rounded-lg text-center font-semibold transition ${
                     printFontSize === item.id
-                      ? 'bg-amber-500 text-slate-950 shadow font-bold'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-amber-600 text-white shadow font-bold'
+                      : 'text-slate-300 hover:text-white'
                   }`}
                 >
                   {item.label}
@@ -306,11 +409,11 @@ export default function PrintPreview({
                 onClick={() => setPaperStyle('white')}
                 className={`p-2.5 rounded-xl border text-center transition flex items-center justify-center gap-2 ${
                   paperStyle === 'white'
-                    ? 'bg-white text-slate-950 border-amber-400 ring-2 ring-amber-400/40 font-bold'
-                    : 'bg-slate-950 text-slate-300 border-emerald-900/60 hover:border-slate-700'
+                    ? 'bg-amber-600 text-white border-amber-400 shadow-md ring-2 ring-amber-400/40 font-bold'
+                    : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700 hover:text-white'
                 }`}
               >
-                <span className="w-3 h-3 rounded-full bg-white border border-slate-300" />
+                <span className="w-3.5 h-3.5 rounded-full bg-white border border-slate-300 shadow-sm shrink-0" />
                 <span>أبيض ناصع</span>
               </button>
               <button
@@ -318,11 +421,11 @@ export default function PrintPreview({
                 onClick={() => setPaperStyle('parchment')}
                 className={`p-2.5 rounded-xl border text-center transition flex items-center justify-center gap-2 ${
                   paperStyle === 'parchment'
-                    ? 'bg-[#fbf7ee] text-[#1c2e28] border-amber-500 ring-2 ring-amber-500/40 font-bold'
-                    : 'bg-slate-950 text-slate-300 border-emerald-900/60 hover:border-slate-700'
+                    ? 'bg-amber-600 text-white border-amber-400 shadow-md ring-2 ring-amber-400/40 font-bold'
+                    : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700 hover:text-white'
                 }`}
               >
-                <span className="w-3 h-3 rounded-full bg-[#fbf7ee] border border-amber-300" />
+                <span className="w-3.5 h-3.5 rounded-full bg-[#fbf7ee] border border-amber-400 shadow-sm shrink-0" />
                 <span>عاجي تراثي</span>
               </button>
             </div>
@@ -379,7 +482,7 @@ export default function PrintPreview({
               <button
                 type="button"
                 onClick={() => setZoomLevel((z) => Math.max(75, z - 10))}
-                className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-700"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition"
                 title="تصغير المعاينة"
               >
                 <ZoomOut className="w-3.5 h-3.5" />
@@ -390,7 +493,7 @@ export default function PrintPreview({
               <button
                 type="button"
                 onClick={() => setZoomLevel((z) => Math.min(140, z + 10))}
-                className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-700"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition"
                 title="تكبير المعاينة"
               >
                 <ZoomIn className="w-3.5 h-3.5" />
@@ -398,7 +501,7 @@ export default function PrintPreview({
               <button
                 type="button"
                 onClick={() => setZoomLevel(100)}
-                className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-700"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition"
                 title="إعادة ضبط الحجم الطبيعي"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -415,21 +518,32 @@ export default function PrintPreview({
           >
             {/* The Authentic A4 Printable Document Container */}
             <div
+              style={{
+                colorScheme: 'light',
+                color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a',
+                backgroundColor: paperStyle === 'parchment' ? '#fbf7ee' : '#ffffff'
+              }}
               className={`printable-hadith-card relative w-full rounded-2xl border-2 p-8 sm:p-12 shadow-2xl transition-colors min-h-[900px] ${
                 paperStyle === 'parchment'
-                  ? 'bg-[#fbf7ee] text-[#1c2e28] border-[#c59b27]/70'
-                  : 'bg-white text-slate-950 border-emerald-900'
+                  ? 'border-[#c59b27]/70'
+                  : 'border-emerald-900'
               }`}
             >
               {/* Islamic Decorative Top Header */}
               {includeIslamicHeader && (
                 <div className="print-header-banner text-center pb-6 mb-6 border-b-2 border-emerald-800/80">
-                  <div className="font-serif text-2xl sm:text-3xl font-bold text-slate-900 mb-1.5 select-none">
+                  <div
+                    style={{ color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a' }}
+                    className="font-serif text-2xl sm:text-3xl font-bold mb-1.5 select-none"
+                  >
                     بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
                   </div>
-                  <div className="text-xs sm:text-sm font-serif font-bold text-emerald-800 flex items-center justify-center gap-2 select-none">
+                  <div
+                    style={{ color: '#065f46' }}
+                    className="text-xs sm:text-sm font-serif font-bold flex items-center justify-center gap-2 select-none"
+                  >
                     <span>۞</span>
-                    <span>موسوعة الحديث الشريف • نِصاب</span>
+                    <span>{bookTitle ? `${bookTitle} • نِصاب` : 'موسوعة النصوص الشريفة • نِصاب'}</span>
                     <span>۞</span>
                   </div>
                 </div>
@@ -439,70 +553,171 @@ export default function PrintPreview({
               <div className="print-header-banner flex flex-wrap items-center justify-between gap-3 pb-5 mb-6 border-b border-emerald-900/30 text-xs text-slate-700">
                 <div className="flex items-center gap-2.5">
                   <span className="w-8 h-8 rounded-lg bg-emerald-900 text-white flex items-center justify-center font-mono font-bold text-xs">
-                    #{hadith?.idInBook || hadith?.id}
+                    {isMultiItem ? `${preparedItems.length}` : `#${hadith?.idInBook || hadith?.id || '1'}`}
                   </span>
                   <div>
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 font-serif">
+                    <h3
+                      style={{ color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a' }}
+                      className="text-base sm:text-lg font-bold font-serif"
+                    >
                       {bookTitle}
                     </h3>
                     {bookAuthor && (
-                      <p className="text-xs text-emerald-800 font-medium">{bookAuthor}</p>
+                      <p style={{ color: '#065f46' }} className="text-xs font-medium">{bookAuthor}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {chapterName && (
-                    <div className="px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-700/40 text-emerald-900 font-serif font-bold text-xs">
+                  {isMultiItem ? (
+                    <div
+                      style={{ color: '#065f46', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                      className="px-3 py-1 rounded-lg border font-serif font-bold text-xs"
+                    >
+                      {preparedItems.length} حدث تاريخي
+                    </div>
+                  ) : chapterName ? (
+                    <div
+                      style={{ color: '#065f46', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                      className="px-3 py-1 rounded-lg border font-serif font-bold text-xs"
+                    >
                       {chapterName}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
-              {/* Hadith Arabic Text Body */}
-              <div className="print-text-body my-6">
-                <div
-                  style={fontSizeStyle}
-                  className="font-serif text-slate-950 text-justify tracking-wide leading-loose break-words [overflow-wrap:anywhere]"
-                >
-                  <span className="text-emerald-900 font-serif text-2xl font-bold inline-block ml-1 select-none">
-                    «
-                  </span>
+              {/* Arabic Text Body: Either Multi-Item Continuous Document Flow OR Single Text */}
+              {isMultiItem ? (
+                /* Multi-Item Continuous Document Flow (Islamic History, Articles, etc.) */
+                <div className="print-text-body space-y-8 my-6">
+                  {preparedItems.map((pItem) => (
+                    <div
+                      key={pItem.itemId}
+                      className="event-print-card pt-6 first:pt-0 border-t border-emerald-900/20 first:border-t-0 text-right"
+                    >
+                      {/* Event Header */}
+                      <div className="event-print-header flex flex-wrap items-center gap-2 mb-3 pb-2 border-b border-emerald-900/20 text-xs">
+                        <span className="font-mono font-bold px-2 py-0.5 rounded bg-emerald-900 text-white text-[11px]">
+                          #{pItem.itemId}
+                        </span>
+                        {pItem.itemTitle && (
+                          <h4
+                            style={{ color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a' }}
+                            className="text-base font-serif font-bold inline-block"
+                          >
+                            {pItem.titleSlices.map((slice, sIdx) => {
+                              if (slice.isHighlight) {
+                                const colorClass =
+                                  HIGHLIGHT_PRINT_COLORS[slice.color] || HIGHLIGHT_PRINT_COLORS.amber;
+                                return (
+                                  <mark
+                                    key={`title-hl-${sIdx}`}
+                                    className={`${colorClass} px-1 py-0.5 rounded inline transition-none font-serif`}
+                                  >
+                                    {slice.text}
+                                  </mark>
+                                );
+                              }
+                              return <span key={`title-plain-${sIdx}`}>{slice.text}</span>;
+                            })}
+                          </h4>
+                        )}
+                        {pItem.itemDates.length > 0 && (
+                          <div className="flex items-center gap-1.5 mr-auto">
+                            {pItem.itemDates.map((dt, dIdx) => (
+                              <span
+                                key={dIdx}
+                                style={{ color: '#065f46' }}
+                                className="px-2 py-0.5 rounded bg-emerald-50 text-[10px] font-mono border border-emerald-200"
+                              >
+                                {dt}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
 
-                  {slices.map((slice, sIdx) => {
-                    if (slice.isHighlight) {
-                      const colorClass = HIGHLIGHT_PRINT_COLORS[slice.color] || HIGHLIGHT_PRINT_COLORS.amber;
-                      return (
-                        <mark
-                          key={`slice-print-${sIdx}`}
-                          className={`${colorClass} px-1 py-0.5 rounded inline transition-none font-serif`}
-                        >
-                          {slice.text}
-                        </mark>
-                      );
-                    }
-                    return <span key={`slice-plain-${sIdx}`}>{slice.text}</span>;
-                  })}
-
-                  <span className="text-emerald-900 font-serif text-2xl font-bold inline-block mr-1 select-none">
-                    »
-                  </span>
+                      {/* Event Narrative Body */}
+                      <div
+                        style={{
+                          ...fontSizeStyle,
+                          color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a'
+                        }}
+                        className="font-serif text-justify tracking-wide leading-loose break-words [overflow-wrap:anywhere]"
+                      >
+                        {pItem.textSlices.map((slice, sIdx) => {
+                          if (slice.isHighlight) {
+                            const colorClass =
+                              HIGHLIGHT_PRINT_COLORS[slice.color] || HIGHLIGHT_PRINT_COLORS.amber;
+                            return (
+                              <mark
+                                key={`text-hl-${sIdx}`}
+                                className={`${colorClass} px-1 py-0.5 rounded inline transition-none font-serif`}
+                              >
+                                {slice.text}
+                              </mark>
+                            );
+                          }
+                          return <span key={`text-plain-${sIdx}`}>{slice.text}</span>;
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                /* Single Hadith Arabic Text Body */
+                <div className="print-text-body my-6">
+                  <div
+                    style={{
+                      ...fontSizeStyle,
+                      color: paperStyle === 'parchment' ? '#1c2e28' : '#0f172a'
+                    }}
+                    className="font-serif text-justify tracking-wide leading-loose break-words [overflow-wrap:anywhere]"
+                  >
+                    <span style={{ color: '#065f46' }} className="font-serif text-2xl font-bold inline-block ml-1 select-none">
+                      «
+                    </span>
+
+                    {slices.map((slice, sIdx) => {
+                      if (slice.isHighlight) {
+                        const colorClass = HIGHLIGHT_PRINT_COLORS[slice.color] || HIGHLIGHT_PRINT_COLORS.amber;
+                        return (
+                          <mark
+                            key={`slice-print-${sIdx}`}
+                            className={`${colorClass} px-1 py-0.5 rounded inline transition-none font-serif`}
+                          >
+                            {slice.text}
+                          </mark>
+                        );
+                      }
+                      return <span key={`slice-plain-${sIdx}`}>{slice.text}</span>;
+                    })}
+
+                    <span style={{ color: '#065f46' }} className="font-serif text-2xl font-bold inline-block mr-1 select-none">
+                      »
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Document Attribution and Footer */}
               {includeFooter && (
-                <div className="print-footer-banner mt-12 pt-6 border-t border-emerald-900/30 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-600 font-sans select-none">
+                <div
+                  style={{ borderColor: 'rgba(6, 95, 70, 0.2)' }}
+                  className="print-footer-banner mt-12 pt-6 border-t flex flex-wrap items-center justify-between gap-3 text-[11px] font-sans select-none"
+                >
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-emerald-900">المصدر:</span>
-                    <span>{bookTitle} ({bookAuthor || 'الحديث الشريف'})</span>
+                    <span style={{ color: '#065f46' }} className="font-bold">المصدر:</span>
+                    <span style={{ color: '#334155' }}>
+                      {bookTitle} ({bookAuthor || (isMultiItem ? 'التاريخ الإسلامي' : 'الحديث الشريف')})
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {printDateStr && <span>تاريخ الطباعة: {printDateStr}</span>}
-                    <span>•</span>
-                    <span className="font-bold text-emerald-900">تطبيق نِصاب (Nisab)</span>
+                    {printDateStr && <span style={{ color: '#334155' }}>تاريخ الطباعة: {printDateStr}</span>}
+                    <span style={{ color: '#94a3b8' }}>•</span>
+                    <span style={{ color: '#065f46' }} className="font-bold">تطبيق نِصاب (Nisab)</span>
                   </div>
                 </div>
               )}

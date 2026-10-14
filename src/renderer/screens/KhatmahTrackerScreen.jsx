@@ -229,9 +229,9 @@ export default function KhatmahTrackerScreen({ onNavigateToQuran }) {
             <button
               type="button"
               onClick={() => setSetupModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs sm:text-sm shadow-lg shadow-amber-900/30 transition active:scale-95"
             >
-              <Plus className="w-4 h-4 text-slate-950" />
+              <Plus className="w-4 h-4 text-white" />
               <span>{hasActiveKhatmah ? 'بدء ختمة جديدة' : 'إنشاء خطة ختمة'}</span>
             </button>
           </div>
@@ -254,11 +254,11 @@ export default function KhatmahTrackerScreen({ onNavigateToQuran }) {
             <button
               type="button"
               onClick={() => setSetupModalOpen(true)}
-              className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm sm:text-base shadow-xl shadow-amber-500/25 active:scale-95 transition inline-flex items-center gap-2"
+              className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-sm sm:text-base shadow-xl shadow-amber-900/30 active:scale-95 transition inline-flex items-center gap-2"
             >
-              <Sparkles className="w-4 h-4 text-slate-950" />
+              <Sparkles className="w-4 h-4 text-white" />
               <span>إعداد خطة الختمة الآن</span>
-              <ChevronLeft className="w-4 h-4 text-slate-950" />
+              <ChevronLeft className="w-4 h-4 text-white" />
             </button>
           </div>
         ) : (
@@ -468,12 +468,12 @@ export default function KhatmahTrackerScreen({ onNavigateToQuran }) {
                     type="button"
                     onClick={handleMarkWerdCompleted}
                     disabled={completingWerd || isCompleted}
-                    className="flex items-center gap-2 px-5 sm:px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm shadow-xl shadow-amber-500/20 active:scale-95 transition disabled:opacity-50"
+                    className="flex items-center gap-2 px-5 sm:px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs sm:text-sm shadow-xl shadow-amber-900/30 active:scale-95 transition disabled:opacity-50"
                   >
                     {completingWerd ? (
                       <MiniLoader size="xs" color="current" />
                     ) : (
-                      <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                      <CheckCircle2 className="w-4 h-4 text-white" />
                     )}
                     <span>إتمام ورد اليوم</span>
                   </button>
@@ -525,7 +525,7 @@ export default function KhatmahTrackerScreen({ onNavigateToQuran }) {
                             <Check className="w-3 h-3 stroke-[3]" />
                           </span>
                         ) : isJuzActive ? (
-                          <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-bold animate-pulse">
+                          <span className="px-1.5 py-0.5 rounded-md bg-amber-600 text-white text-[10px] font-bold animate-pulse">
                             أنت هنا
                           </span>
                         ) : null}
@@ -849,14 +849,14 @@ function KhatmahSetupModal({ initialDays = 30, onClose, onConfirm }) {
           <div className="flex items-center gap-3 pt-2">
             <button
               type="submit"
-              className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 active:scale-95 transition"
+              className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-sm shadow-lg shadow-amber-900/30 active:scale-95 transition"
             >
               توكلت على الله • ابدأ الختمة
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition"
+              className="px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-sm font-semibold transition"
             >
               إلغاء
             </button>
@@ -919,7 +919,7 @@ function DuaKhatmModal({ isCompleted, onClose, onArchive }) {
                   onClick={() => setFontSizeIndex(idx)}
                   className={`px-2 py-1 rounded-lg transition ${
                     fontSizeIndex === idx
-                      ? 'bg-amber-500 text-slate-950 font-bold'
+                      ? 'bg-amber-600 text-white font-bold'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -983,9 +983,9 @@ function DuaKhatmModal({ isCompleted, onClose, onArchive }) {
             <button
               type="button"
               onClick={onArchive}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition active:scale-95"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs sm:text-sm shadow-lg shadow-amber-900/30 transition active:scale-95"
             >
-              <Award className="w-4 h-4 text-slate-950" />
+              <Award className="w-4 h-4 text-white" />
               <span>أرشفة الختمة والبدء بختمة جديدة</span>
             </button>
           )}
@@ -993,7 +993,7 @@ function DuaKhatmModal({ isCompleted, onClose, onArchive }) {
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs sm:text-sm mr-auto"
+            className="px-5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs sm:text-sm mr-auto"
           >
             إغلاق النافذة
           </button>
@@ -1153,14 +1153,14 @@ function ManualEditModal({ currentPage, onClose, onSave }) {
           <div className="flex items-center gap-2 pt-2">
             <button
               type="submit"
-              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold text-xs shadow transition active:scale-95"
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs shadow-lg shadow-amber-900/30 transition active:scale-95"
             >
               حفظ الموضع الجديد
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs"
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs transition"
             >
               إلغاء
             </button>
@@ -1340,7 +1340,7 @@ function ConfirmDeleteModal({ khatmahName, onClose, onConfirm }) {
             type="button"
             onClick={onClose}
             disabled={deleting}
-            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs sm:text-sm transition"
+            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs sm:text-sm transition"
           >
             إلغاء
           </button>

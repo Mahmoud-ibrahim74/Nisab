@@ -18,11 +18,16 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
-  Coins
+  Coins,
+  Award,
+  Library,
+  ExternalLink,
+  X
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import { getPrayerSchedule } from '../../utils/prayerTimes';
 import { ALADHAN_METHOD_MAP } from './SettingsScreen';
+import { getRandomQuestion, openExternalUrl, recordQuizAnswer } from '../services/quizService';
 
 // Arabic Prayer Display Names & Icons
 const PRAYER_METADATA = {
@@ -61,6 +66,46 @@ export default function DashboardScreen({ onNavigate }) {
   const [countdownText, setCountdownText] = useState('');
   const [dailyQuote, setDailyQuote] = useState(INSPIRATIONAL_QUOTES[0]);
   const [copiedQuote, setCopiedQuote] = useState(false);
+
+  // Random Islamic Question State (Fetched fresh on each app/screen open)
+  const [randomQuestion, setRandomQuestion] = useState(null);
+  const [questionLoading, setQuestionLoading] = useState(true);
+  const [selectedAnswerIndex, setSelectedAnswerIndex] = useState(null);
+  const [hasAnswered, setHasAnswered] = useState(false);
+  const [isRefreshingQuestion, setIsRefreshingQuestion] = useState(false);
+
+  // Fetch a random question from Islamic-Quizzes.json
+  const fetchRandomQuestion = async (isManualRefresh = false) => {
+    try {
+      if (isManualRefresh) setIsRefreshingQuestion(true);
+      else setQuestionLoading(true);
+
+      const q = await getRandomQuestion();
+      if (q) {
+        setRandomQuestion(q);
+        setSelectedAnswerIndex(null);
+        setHasAnswered(false);
+      }
+    } catch (err) {
+      console.error('Failed to load random question:', err);
+    } finally {
+      setQuestionLoading(false);
+      setIsRefreshingQuestion(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRandomQuestion();
+  }, []);
+
+  const handleSelectQuizAnswer = (index) => {
+    if (hasAnswered || !randomQuestion) return;
+    setSelectedAnswerIndex(index);
+    setHasAnswered(true);
+    const chosen = randomQuestion.shuffledAnswers[index];
+    const isCorrect = chosen?.t === 1;
+    recordQuizAnswer(isCorrect, randomQuestion.categoryId);
+  };
 
   // Online / Offline State
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -536,6 +581,153 @@ export default function DashboardScreen({ onNavigate }) {
           </div>
         </div>
 
+        {/* Random Islamic Quiz Question Card (سؤال اليوم في المسابقات الإسلامية) */}
+        {randomQuestion && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative bg-gradient-to-r from-emerald-950/90 via-slate-900/95 to-emerald-950/90 border border-emerald-800/60 rounded-3xl p-4 sm:p-6 md:p-7 shadow-2xl backdrop-blur-md overflow-hidden"
+          >
+            {/* Top decorative header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-emerald-900/40">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <div className="p-2 sm:p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow">
+                  <Award className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-amber-300 font-bold text-sm sm:text-base">سؤال اليوم في العلوم الشرعية</span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      عشوائي
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
+                    <span className="text-emerald-400 font-medium">{randomQuestion.categoryName}</span>
+                    <span>•</span>
+                    <span>{randomQuestion.topicName}</span>
+                    <span>•</span>
+                    <span className="text-amber-300/80">{randomQuestion.levelName}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons: New Random Question & Go to full Quizzes screen */}
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  onClick={() => fetchRandomQuestion(true)}
+                  disabled={isRefreshingQuestion}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-xs text-slate-200 hover:text-amber-300 border border-slate-700 transition"
+                  title="سحب سؤال عشوائي جديد"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingQuestion ? 'animate-spin text-amber-400' : ''}`} />
+                  <span>سؤال آخر</span>
+                </button>
+
+                <button
+                  onClick={() => onNavigate && onNavigate('quizzes')}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-900/80 hover:bg-emerald-800 text-xs text-amber-300 border border-emerald-700/60 transition shadow-sm font-semibold"
+                  title="الانتقال إلى جميع المسابقات الإسلامية"
+                >
+                  <span>قسم المسابقات</span>
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Question Text */}
+            <div className="my-4 sm:my-5">
+              <p className="font-serif text-base sm:text-xl md:text-2xl text-amber-200 leading-relaxed">
+                « {randomQuestion.q} »
+              </p>
+            </div>
+
+            {/* Multiple Choice Answers */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
+              {randomQuestion.shuffledAnswers?.map((ans, idx) => {
+                const isSelected = selectedAnswerIndex === idx;
+                const isCorrect = ans.t === 1;
+
+                let optClass = 'bg-slate-900/90 border-emerald-900/60 text-slate-200 hover:border-amber-400/80 hover:bg-slate-800/80';
+                let badgeClass = 'bg-slate-800 text-slate-400';
+
+                if (hasAnswered) {
+                  if (isCorrect) {
+                    optClass = 'bg-emerald-900/90 border-emerald-400 text-emerald-100 ring-2 ring-emerald-400/40 shadow-md';
+                    badgeClass = 'bg-emerald-500 text-slate-950 font-bold';
+                  } else if (isSelected && !isCorrect) {
+                    optClass = 'bg-rose-950/90 border-rose-500 text-rose-100 ring-2 ring-rose-500/40';
+                    badgeClass = 'bg-rose-500 text-white font-bold';
+                  } else {
+                    optClass = 'opacity-40 bg-slate-950/60 border-slate-900 text-slate-400';
+                  }
+                }
+
+                const arabicLetters = ['أ', 'ب', 'ج'];
+
+                return (
+                  <button
+                    key={idx}
+                    disabled={hasAnswered}
+                    onClick={() => handleSelectQuizAnswer(idx)}
+                    className={`p-3 sm:p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between text-xs sm:text-sm font-medium ${optClass}`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs ${badgeClass}`}>
+                        {arabicLetters[idx] || idx + 1}
+                      </span>
+                      <span className="leading-snug">{ans.answer}</span>
+                    </div>
+
+                    {hasAnswered && isCorrect && <Check className="w-4 h-4 text-emerald-400 shrink-0 mr-1" />}
+                    {hasAnswered && isSelected && !isCorrect && <X className="w-4 h-4 text-rose-400 shrink-0 mr-1" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Answer Feedback Banner & Dorar Reference */}
+            {hasAnswered && (
+              <div className="mt-4 pt-3 border-t border-emerald-900/40 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  {randomQuestion.shuffledAnswers[selectedAnswerIndex]?.t === 1 ? (
+                    <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>أحسنت! إجابة صحيحة بارك الله فيك ✨</span>
+                    </span>
+                  ) : (
+                    <span className="text-rose-400 font-semibold flex items-center gap-1.5 flex-wrap">
+                      <X className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>إجابة خاطئة! الإجابة الصحيحة هي:</span>
+                      <span className="text-emerald-300 font-bold">
+                        « {randomQuestion.shuffledAnswers.find((a) => a.t === 1)?.answer} »
+                      </span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {randomQuestion.link && (
+                    <button
+                      onClick={() => openExternalUrl(randomQuestion.link)}
+                      className="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 transition"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>توثيق الإجابة في الدرر السنية</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => fetchRandomQuestion(true)}
+                    className="text-xs text-slate-300 hover:text-amber-300 flex items-center gap-1 underline font-medium"
+                  >
+                    <span>سؤال جديد</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Daily Islamic Quote Card */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -567,7 +759,35 @@ export default function DashboardScreen({ onNavigate }) {
         </motion.div>
 
         {/* Quick Navigation Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 sm:gap-5">
+          <button
+            onClick={() => onNavigate && onNavigate('books')}
+            className="group p-4 sm:p-5 rounded-3xl bg-slate-900/80 border border-emerald-900/60 hover:border-amber-400/60 transition-all text-right flex items-center justify-between shadow-xl"
+          >
+            <div>
+              <div className="p-2.5 sm:p-3 w-fit rounded-2xl bg-gradient-to-br from-amber-500/20 to-emerald-950 text-amber-400 border border-amber-500/40 mb-3 group-hover:scale-110 transition-transform">
+                <Library className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-amber-200">المكتبة الإسلامية</h3>
+              <p className="text-xs text-slate-400 mt-1">مطالعة 19 كتاباً ورسالة دعوية نافعة</p>
+            </div>
+            <ChevronLeft className="w-5 h-5 text-slate-500 group-hover:text-amber-400 group-hover:-translate-x-1 transition-all" />
+          </button>
+
+          <button
+            onClick={() => onNavigate && onNavigate('quizzes')}
+            className="group p-4 sm:p-5 rounded-3xl bg-slate-900/80 border border-emerald-900/60 hover:border-amber-400/60 transition-all text-right flex items-center justify-between shadow-xl"
+          >
+            <div>
+              <div className="p-2.5 sm:p-3 w-fit rounded-2xl bg-gradient-to-br from-amber-500/20 to-emerald-950 text-amber-400 border border-amber-500/40 mb-3 group-hover:scale-110 transition-transform">
+                <Award className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-amber-200">المسابقات الإسلامية</h3>
+              <p className="text-xs text-slate-400 mt-1">5,820 سؤال في مختلف العلوم الشرعية</p>
+            </div>
+            <ChevronLeft className="w-5 h-5 text-slate-500 group-hover:text-amber-400 group-hover:-translate-x-1 transition-all" />
+          </button>
+
           <button
             onClick={() => onNavigate && onNavigate('zakat')}
             className="group p-4 sm:p-5 rounded-3xl bg-slate-900/80 border border-emerald-900/60 hover:border-amber-400/60 transition-all text-right flex items-center justify-between shadow-xl"

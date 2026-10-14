@@ -1,4 +1,4 @@
-const { app, ipcMain, BrowserWindow } = require('electron');
+const { app, ipcMain, BrowserWindow, shell } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { Worker } = require('node:worker_threads');
@@ -67,8 +67,8 @@ function registerIpcHandlers(resourcesDir) {
       const fullPath = safeResolveResourcePath(relativePath);
       const data = await fs.readFile(fullPath, 'utf8');
       const parsed = JSON.parse(data);
-      // Cache files smaller than 10MB in main memory
-      if (data.length < 10 * 1024 * 1024) {
+      // Cache files smaller than 25MB in main memory
+      if (data.length < 25 * 1024 * 1024) {
         jsonMemoryCache.set(relativePath, parsed);
       }
       return parsed;
@@ -112,9 +112,9 @@ function registerIpcHandlers(resourcesDir) {
     return JSON.parse(data);
   });
 
-  // 6. Get offline audio path (azan.mp3, reminder.mp3, rattil.mp3)
+  // 6. Get offline audio path (azan.mp3, reminder.mp3, rattil.mp3, page-flip.mp3)
   ipcMain.handle('audio:getOfflineAudio', async (event, soundName) => {
-    const allowed = ['azan.mp3', 'reminder.mp3', 'rattil.mp3'];
+    const allowed = ['azan.mp3', 'reminder.mp3', 'rattil.mp3', 'page-flip.mp3'];
     if (!allowed.includes(soundName)) {
       throw new Error('Invalid sound file requested');
     }
@@ -225,6 +225,19 @@ function registerIpcHandlers(resourcesDir) {
       console.error('Error saving Khatmah data to disk:', err);
       return false;
     }
+  });
+
+  // 11. Open External URL in default system browser
+  ipcMain.handle('app:openExternal', async (event, url) => {
+    try {
+      if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+        await shell.openExternal(url);
+        return true;
+      }
+    } catch (err) {
+      console.error('Failed to open external url:', err);
+    }
+    return false;
   });
 }
 
