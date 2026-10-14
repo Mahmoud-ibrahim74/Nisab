@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import developerPhoto from '../../assets/icon_person.png';
-import hagerPhoto from '../../assets/hager.jpeg';
+import hagerPhoto from '../../assets/hager.png';
 import appIcon from '../../assets/icon.png';
 
 // Brand SVG Icons
@@ -115,40 +115,39 @@ export default function AboutScreen() {
               <div className="absolute -bottom-12 -left-12 w-36 h-36 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
 
               <div>
-                {/* Photo Container */}
-                <div className="relative w-full h-[380px] sm:h-[440px] rounded-2xl overflow-hidden border border-amber-500/30 shadow-2xl group bg-slate-950/80 flex items-center justify-center">
+                {/* Photo Container (Clean - No overlays covering the picture) */}
+                <div className="relative w-full h-[360px] sm:h-[420px] rounded-2xl overflow-hidden border border-amber-500/30 shadow-2xl group bg-slate-950/80 flex items-center justify-center">
                   <img
                     src={developerPhoto}
                     alt="م. محمود إبراهيم - Software Engineer"
                     className="w-full h-full object-contain rounded-2xl transition-transform duration-500 group-hover:scale-[1.02]"
                   />
+                </div>
 
-                  {/* Top Status Badge */}
-                  <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-slate-950/90 backdrop-blur-md border border-amber-500/50 text-xs text-amber-300 font-bold shadow-lg flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>مطور ومؤسس نِصاب</span>
+                {/* Member Description Block (UNDER the image) */}
+                <div className="mt-4 space-y-2 text-center">
+                  <h3 className="text-xl sm:text-2xl font-bold font-serif text-slate-100">
+                    م. محمود إبراهيم
+                  </h3>
+                  <div className="text-xs text-amber-300 font-mono" dir="ltr">
+                    Mahmoud Ibrahim
                   </div>
 
-                  {/* Bottom Gradient Info Overlay */}
-                  <div className="absolute inset-x-0 bottom-0 p-4 pt-14 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent flex flex-col items-center text-center">
-                    <h3 className="text-xl sm:text-2xl font-bold font-serif text-slate-100">
-                      م. محمود إبراهيم
-                    </h3>
-                    <span className="text-xs text-amber-300 font-mono mt-0.5" dir="ltr">
-                      Mahmoud Ibrahim
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300">
+                      <Code2 className="w-3.5 h-3.5 text-emerald-400" />
+                      Software Engineer
                     </span>
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300">
-                        <Code2 className="w-3.5 h-3.5 text-emerald-400" />
-                        Software Engineer
-                      </span>
-                    </div>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      مطور ومؤسس نِصاب
+                    </span>
                   </div>
                 </div>
               </div>
 
               {/* Sincere Note */}
-              <div className="w-full mt-3 p-3 rounded-2xl bg-slate-950/80 border border-emerald-900/50 text-center">
+              <div className="w-full mt-4 p-3 rounded-2xl bg-slate-950/80 border border-emerald-900/50 text-center">
                 <p className="text-xs text-slate-300 leading-relaxed font-serif">
                   « نسألكم الدعاء بظهر الغيب بالقبول والمغفرة »
                 </p>
@@ -167,44 +166,43 @@ export default function AboutScreen() {
               <div className="absolute -bottom-12 -right-12 w-36 h-36 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
 
               <div>
-                {/* Photo Container */}
-                <div className="relative w-full h-[380px] sm:h-[440px] rounded-2xl overflow-hidden border border-amber-500/30 shadow-2xl group bg-slate-950/80 flex items-center justify-center">
+                {/* Photo Container (Clean - No overlays covering the picture) */}
+                <div className="relative w-full h-[360px] sm:h-[420px] rounded-2xl overflow-hidden border border-amber-500/30 shadow-2xl group bg-slate-950/80 flex items-center justify-center">
                   <img
                     src={hagerPhoto}
                     alt="م. هاجر عبد الناصر - Software Engineer & Software Tester"
                     className="w-full h-full object-contain rounded-2xl transition-transform duration-500 group-hover:scale-[1.02]"
                   />
+                </div>
 
-                  {/* Top Status Badge */}
-                  <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-slate-950/90 backdrop-blur-md border border-amber-500/50 text-xs text-amber-300 font-bold shadow-lg flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                    <span>اختبار وضمان جودة البرمجيات</span>
+                {/* Member Description Block (UNDER the image) */}
+                <div className="mt-4 space-y-2 text-center">
+                  <h3 className="text-xl sm:text-2xl font-bold font-serif text-slate-100">
+                    م. هاجر عبد الناصر
+                  </h3>
+                  <div className="text-xs text-amber-300 font-mono" dir="ltr">
+                    Hager AbdelNasser
                   </div>
 
-                  {/* Bottom Gradient Info Overlay */}
-                  <div className="absolute inset-x-0 bottom-0 p-4 pt-14 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent flex flex-col items-center text-center">
-                    <h3 className="text-xl sm:text-2xl font-bold font-serif text-slate-100">
-                      م. هاجر عبد الناصر
-                    </h3>
-                    <span className="text-xs text-amber-300 font-mono mt-0.5" dir="ltr">
-                      Hager AbdelNasser
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300">
+                      <Code2 className="w-3.5 h-3.5 text-emerald-400" />
+                      Software Engineer
                     </span>
-                    <div className="flex flex-wrap items-center justify-center gap-1.5 mt-1.5">
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300">
-                        <Code2 className="w-3.5 h-3.5 text-emerald-400" />
-                        Software Engineer
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300">
-                        <CheckCheck className="w-3.5 h-3.5 text-amber-400" />
-                        Software Tester
-                      </span>
-                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300">
+                      <CheckCheck className="w-3.5 h-3.5 text-amber-400" />
+                      Software Tester
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-slate-300">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                      اختبار وضمان جودة البرمجيات
+                    </span>
                   </div>
                 </div>
               </div>
 
               {/* Sincere Note */}
-              <div className="w-full mt-3 p-3 rounded-2xl bg-slate-950/80 border border-emerald-900/50 text-center">
+              <div className="w-full mt-4 p-3 rounded-2xl bg-slate-950/80 border border-emerald-900/50 text-center">
                 <p className="text-xs text-slate-300 leading-relaxed font-serif">
                   « فحص واختبار دقة النظام وضمان تجربة استخدام موثوقة »
                 </p>
