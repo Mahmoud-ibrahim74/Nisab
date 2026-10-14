@@ -4,6 +4,7 @@ logs
 out/
 build-out/
 dist-out/
+dist-bin/
 dist/
 npm-debug.log*
 yarn-debug.log*

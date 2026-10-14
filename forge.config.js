@@ -4,7 +4,7 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const path = require('path');
 
 module.exports = {
-  outDir: 'build-out',
+  outDir: 'dist-bin',
   packagerConfig: {
     electronVersion: '22.3.27',
     download: {
@@ -27,13 +27,8 @@ module.exports = {
       legalCopyright: 'Copyright © 2026 Nisab (Mahmoud Ibrahim)'
     },
     ignore: [
-      /\.git/,
-      /scratch/,
-      /scripts/,
-      /\/out($|\/)/,
-      /\/build-out($|\/)/,
-      /\/dist-out($|\/)/,
-      /\/installer($|\/)/
+      /[\\/]?(\.git|scratch|scripts|installer|out|build-out|dist-out|dist-bin|\.vscode)($|[\\/])/,
+      /[\\/](out|build-out|dist-out|dist-bin|scratch|scripts|installer)($|[\\/])/
     ]
   },
   rebuildConfig: {},

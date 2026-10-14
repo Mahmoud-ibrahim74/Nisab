@@ -8,7 +8,7 @@ async function build() {
   await generateBitmaps();
 
   const issPath = path.resolve(__dirname, '../installer/nisab-setup.iss');
-  const outDir = path.resolve(__dirname, '../build-out/make/installer');
+  const outDir = path.resolve(__dirname, '../dist-bin/make/installer');
 
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
