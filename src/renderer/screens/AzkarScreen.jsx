@@ -10,11 +10,12 @@ import {
   Search,
   Volume2,
   LayoutGrid,
-  List
+  List,
+  BookmarkCheck
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 
-export default function AzkarScreen() {
+export default function AzkarScreen({ onNavigate = null }) {
   const [categories, setCategories] = useState([]);
   const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -103,14 +104,27 @@ export default function AzkarScreen() {
             </p>
           </div>
 
-          {/* Reset All Button */}
-          <button
-            onClick={handleResetCategory}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-slate-900 border border-emerald-800 text-xs text-slate-300 hover:text-amber-300 transition shadow self-start sm:self-auto"
-          >
-            <RotateCcw className="w-4 h-4 text-emerald-400" />
-            <span>إعادة تعيين عدادات القسم</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('various_azkar')}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-emerald-950 border border-amber-500/50 hover:border-amber-400 text-xs text-amber-300 font-bold transition shadow hover:bg-emerald-900"
+                title="تصفح أذكار وفضائل مأثورة بأصولها من السنة النبوية"
+              >
+                <BookmarkCheck className="w-4 h-4 text-amber-400" />
+                <span>أذكار وفضائل مأثورة (بالأدلة)</span>
+              </button>
+            )}
+
+            {/* Reset All Button */}
+            <button
+              onClick={handleResetCategory}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl bg-slate-900 border border-emerald-800 text-xs text-slate-300 hover:text-amber-300 transition shadow"
+            >
+              <RotateCcw className="w-4 h-4 text-emerald-400" />
+              <span>إعادة تعيين العدادات</span>
+            </button>
+          </div>
         </div>
 
         {/* Category Selector Bar & Search */}

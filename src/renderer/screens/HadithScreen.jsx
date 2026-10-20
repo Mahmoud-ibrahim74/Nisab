@@ -172,42 +172,111 @@ function HadithCard({
   );
 }
 
+// Persistent memory cache to preserve search state across navigation
+const hadithScreenStateCache = {
+  selectedBookFile: 'bukhari.json',
+  currentBookData: null,
+  hadithsList: [],
+  searchQuery: '',
+  activeSearchTerm: '',
+  searchResults: null,
+  page: 1,
+  viewMode: 'grid',
+  activeFilter: 'all',
+  scrollTop: 0
+};
+
 export default function HadithScreen({ onViewHadithInfo }) {
-  const [selectedBookFile, setSelectedBookFile] = useState('bukhari.json');
-  const [currentBookData, setCurrentBookData] = useState(null);
-  const [hadithsList, setHadithsList] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [selectedBookFile, setSelectedBookFile] = useState(hadithScreenStateCache.selectedBookFile);
+  const [currentBookData, setCurrentBookData] = useState(hadithScreenStateCache.currentBookData);
+  const [hadithsList, setHadithsList] = useState(hadithScreenStateCache.hadithsList);
+  const [loading, setLoading] = useState(!hadithScreenStateCache.currentBookData);
 
   // Search state (Offloaded to background worker thread via IPC)
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeSearchTerm, setActiveSearchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState(hadithScreenStateCache.searchQuery);
+  const [activeSearchTerm, setActiveSearchTerm] = useState(hadithScreenStateCache.activeSearchTerm);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState(null);
+  const [searchResults, setSearchResults] = useState(hadithScreenStateCache.searchResults);
 
   // Copy state
   const [copiedId, setCopiedId] = useState(null);
 
   // Pagination for browsing
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(hadithScreenStateCache.page);
   const pageSize = 20;
 
   // View Mode: 'grid' (2 uniform columns) | 'list' (1 uniform column)
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState(hadithScreenStateCache.viewMode);
+
+  const containerRef = useRef(null);
+  const lastLoadedBookFileRef = useRef(
+    hadithScreenStateCache.currentBookData ? hadithScreenStateCache.selectedBookFile : null
+  );
+
+  // Keep cache synced with state changes
+  useEffect(() => {
+    hadithScreenStateCache.searchQuery = searchQuery;
+    hadithScreenStateCache.activeSearchTerm = activeSearchTerm;
+    hadithScreenStateCache.searchResults = searchResults;
+    hadithScreenStateCache.page = page;
+    hadithScreenStateCache.viewMode = viewMode;
+    hadithScreenStateCache.selectedBookFile = selectedBookFile;
+  }, [searchQuery, activeSearchTerm, searchResults, page, viewMode, selectedBookFile]);
+
+  // Scroll restoration across screen navigations
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el) {
+      if (hadithScreenStateCache.scrollTop > 0) {
+        requestAnimationFrame(() => {
+          if (el) el.scrollTop = hadithScreenStateCache.scrollTop;
+        });
+      }
+
+      const handleScroll = () => {
+        hadithScreenStateCache.scrollTop = el.scrollTop;
+      };
+
+      el.addEventListener('scroll', handleScroll, { passive: true });
+      return () => {
+        if (el) hadithScreenStateCache.scrollTop = el.scrollTop;
+        el.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, []);
 
   // 1. Load Selected Hadith Book
   useEffect(() => {
     async function loadBook() {
+      // If book is already in memory and matches selectedBookFile, keep it and preserve search
+      if (lastLoadedBookFileRef.current === selectedBookFile && currentBookData) {
+        return;
+      }
+
+      // If user explicitly changed the book file, reset search for the new book
+      if (lastLoadedBookFileRef.current && lastLoadedBookFileRef.current !== selectedBookFile) {
+        setSearchResults(null);
+        setSearchQuery('');
+        setActiveSearchTerm('');
+        setPage(1);
+        hadithScreenStateCache.searchResults = null;
+        hadithScreenStateCache.searchQuery = '';
+        hadithScreenStateCache.activeSearchTerm = '';
+        hadithScreenStateCache.page = 1;
+        hadithScreenStateCache.scrollTop = 0;
+      }
+
       setLoading(true);
-      setSearchResults(null);
-      setSearchQuery('');
-      setActiveSearchTerm('');
-      setPage(1);
       try {
         const data = await window.nisabAPI.readJson(`Hadiths/${selectedBookFile}`);
         setCurrentBookData(data);
         if (data?.hadiths) {
           setHadithsList(data.hadiths);
         }
+        lastLoadedBookFileRef.current = selectedBookFile;
+        hadithScreenStateCache.selectedBookFile = selectedBookFile;
+        hadithScreenStateCache.currentBookData = data;
+        hadithScreenStateCache.hadithsList = data?.hadiths || [];
       } catch (err) {
         console.error('Failed to load hadith book:', err);
       } finally {
@@ -225,13 +294,13 @@ export default function HadithScreen({ onViewHadithInfo }) {
     e?.preventDefault();
     const query = searchQuery.trim();
     if (!query) {
-      setSearchResults(null);
-      setActiveSearchTerm('');
+      handleClearSearch();
       return;
     }
 
     setIsSearching(true);
     setActiveSearchTerm(query);
+    setPage(1);
     try {
       // Offloads to background worker thread
       const results = await window.nisabAPI.searchHadith(query, {
@@ -239,6 +308,10 @@ export default function HadithScreen({ onViewHadithInfo }) {
         limit: 100
       });
       setSearchResults(results || []);
+      hadithScreenStateCache.searchResults = results || [];
+      hadithScreenStateCache.activeSearchTerm = query;
+      hadithScreenStateCache.page = 1;
+      hadithScreenStateCache.scrollTop = 0;
     } catch (err) {
       console.error('Search error:', err);
     } finally {
@@ -250,6 +323,12 @@ export default function HadithScreen({ onViewHadithInfo }) {
     setSearchResults(null);
     setSearchQuery('');
     setActiveSearchTerm('');
+    setPage(1);
+    hadithScreenStateCache.searchResults = null;
+    hadithScreenStateCache.searchQuery = '';
+    hadithScreenStateCache.activeSearchTerm = '';
+    hadithScreenStateCache.page = 1;
+    hadithScreenStateCache.scrollTop = 0;
   };
 
   const handleCopyHadith = (hadith) => {
@@ -270,7 +349,11 @@ export default function HadithScreen({ onViewHadithInfo }) {
   });
 
   // Active Filter: 'all' (Book hadiths) | 'fav' (Favorite hadiths)
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useState(hadithScreenStateCache.activeFilter);
+
+  useEffect(() => {
+    hadithScreenStateCache.activeFilter = activeFilter;
+  }, [activeFilter]);
 
   // Listen to favorite change events across screens
   useEffect(() => {
@@ -349,6 +432,7 @@ export default function HadithScreen({ onViewHadithInfo }) {
 
   return (
     <div
+      ref={containerRef}
       style={{ height: '100%', overflowY: 'auto' }}
       className="relative h-full w-full bg-slate-950 text-slate-100 p-3 sm:p-5 lg:p-8 overflow-y-auto scrollbar-thin scrollbar-thumb-emerald-800"
       dir="rtl"

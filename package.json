@@ -25,12 +25,11 @@
     "start": "npm run build && electron-forge start",
     "package": "npm run build && electron-forge package",
     "make": "npm run build && electron-forge make",
-    "installer": "node scripts/build-installer.js",
+    "installer": "npm run package && node scripts/build-installer.js",
     "release": "electron-forge release",
     "lint": "echo \"No linting configured\""
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.12",
     "adhan": "^4.4.6",
     "clsx": "^2.1.1",
     "electron-squirrel-startup": "^1.0.1",
@@ -40,8 +39,7 @@
     "lucide-react": "^1.55.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "tailwind-merge": "^3.7.0",
-    "youtubei.js": "^18.1.0"
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",

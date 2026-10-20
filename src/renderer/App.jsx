@@ -32,6 +32,7 @@ import HadithInfoScreen from './screens/HadithInfoScreen';
 import IslamicHistoryScreen from './screens/IslamicHistoryScreen';
 import IslamicQuizzesScreen from './screens/IslamicQuizzesScreen';
 import AzkarScreen from './screens/AzkarScreen';
+import VariousAzkarScreen from './screens/VariousAzkarScreen';
 import RoqiaScreen from './screens/RoqiaScreen';
 import AsmaScreen from './screens/AsmaScreen';
 import RadioScreen from './screens/RadioScreen';
@@ -76,7 +77,8 @@ const NAV_GROUPS = [
     title: 'العبادات والأذكار',
     items: [
       { id: 'zakat', label: 'حاسبة الزكاة', icon: Coins },
-      { id: 'azkar', label: 'الأذكار', icon: Heart },
+      { id: 'azkar', label: 'الأذكار اليومية', icon: Heart },
+      { id: 'various_azkar', label: 'أذكار وفضائل مأثورة', icon: BookmarkCheck },
       { id: 'roqia', label: 'الرقية الشرعية', icon: ShieldCheck },
       { id: 'asma', label: 'أسماء الله الحسنى', icon: Sparkles },
       { id: 'calendar', label: 'التقويم الهجري', icon: Calendar, badge: 'Soon' },
@@ -485,7 +487,21 @@ export default function App() {
               style={{ width: '100%', height: '100%', minWidth: 0 }}
               className="h-full w-full min-w-0"
             >
-              <AzkarScreen />
+              <AzkarScreen onNavigate={(tab) => setActiveTab(tab)} />
+            </motion.div>
+          )}
+
+          {activeTab === 'various_azkar' && (
+            <motion.div
+              key="various_azkar"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ width: '100%', height: '100%', minWidth: 0 }}
+              className="h-full w-full min-w-0"
+            >
+              <VariousAzkarScreen onBack={() => setActiveTab('dashboard')} />
             </motion.div>
           )}
 

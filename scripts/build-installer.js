@@ -3,8 +3,17 @@ const path = require('path');
 const fs = require('fs');
 
 const generateBitmaps = require('./generate-bitmaps');
+const { execSync } = require('child_process');
 
 async function build() {
+  const appDir = path.resolve(__dirname, '../build-out/Nisab-win32-x64');
+  const exePath = path.resolve(appDir, 'Nisab.exe');
+
+  if (!fs.existsSync(exePath)) {
+    console.log('Packaged application not found. Running "npm run package"...');
+    execSync('npm run package', { stdio: 'inherit', cwd: path.resolve(__dirname, '..') });
+  }
+
   await generateBitmaps();
 
   const issPath = path.resolve(__dirname, '../installer/nisab-setup.iss');

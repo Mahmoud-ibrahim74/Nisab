@@ -12,7 +12,7 @@ import TextView from '../components/TextView';
 export default function HadithInfoScreen({ hadithData, onBack }) {
   return (
     <TextView
-      hadithData={hadithData}
+      itemData={hadithData}
       onBack={onBack}
     />
   );

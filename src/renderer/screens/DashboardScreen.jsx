@@ -22,6 +22,7 @@ import {
   Award,
   Library,
   ExternalLink,
+  BookmarkCheck,
   X
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
@@ -840,6 +841,20 @@ export default function DashboardScreen({ onNavigate }) {
               </div>
               <h3 className="text-base sm:text-lg font-bold text-amber-200">الأذكار والتسبيح</h3>
               <p className="text-xs text-slate-400 mt-1">أذكار الصباح والمساء بعداد تفاعلي</p>
+            </div>
+            <ChevronLeft className="w-5 h-5 text-slate-500 group-hover:text-amber-400 group-hover:-translate-x-1 transition-all" />
+          </button>
+
+          <button
+            onClick={() => onNavigate && onNavigate('various_azkar')}
+            className="group p-4 sm:p-6 rounded-3xl bg-slate-900/80 border border-emerald-900/60 hover:border-amber-400/60 transition-all text-right flex items-center justify-between shadow-xl"
+          >
+            <div>
+              <div className="p-3 w-fit rounded-2xl bg-emerald-950 text-amber-400 border border-emerald-800/60 mb-3 group-hover:scale-110 transition-transform">
+                <BookmarkCheck className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-amber-200">أذكار وفضائل مأثورة</h3>
+              <p className="text-xs text-slate-400 mt-1">34 ذكراً مأثوراً مع أدلتها من دواوين السنة</p>
             </div>
             <ChevronLeft className="w-5 h-5 text-slate-500 group-hover:text-amber-400 group-hover:-translate-x-1 transition-all" />
           </button>

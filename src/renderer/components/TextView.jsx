@@ -311,24 +311,46 @@ export default function TextView({
   searchQuery = '',
   className = '',
 
-  // Backward-compatibility props for HadithInfoScreen:
+  // Generic Item & Context Props (Universal for any screen / resource):
+  itemData,
+  item: directItem,
+  sourceTitle: directSourceTitle,
+  sourceAuthor: directSourceAuthor,
+  sectionName: directSectionName,
+
+  // Backward-compatibility props:
   hadithData,
   hadith: directHadith,
   bookTitle: directBookTitle,
   bookAuthor: directBookAuthor,
   chapterName: directChapterName,
 }) {
-  const currentItem = directHadith || hadithData?.hadith || null;
-  const currentBookData = hadithData?.currentBookData || null;
+  // Resolve generic props with backward-compatible fallbacks
+  const resolvedItemData = itemData || hadithData || null;
+  const resolvedItem = directItem || directHadith || null;
+  const resolvedSourceTitle = directSourceTitle || directBookTitle || '';
+  const resolvedSourceAuthor = directSourceAuthor || directBookAuthor || '';
+  const resolvedSectionName = directSectionName || directChapterName || '';
+
+  const currentItem =
+    resolvedItem ||
+    resolvedItemData?.item ||
+    resolvedItemData?.hadith ||
+    null;
+
+  const currentCollectionData =
+    resolvedItemData?.collectionData ||
+    resolvedItemData?.currentBookData ||
+    null;
 
   const [activeItem, setActiveItem] = useState(currentItem);
 
   // Update when props change
   useEffect(() => {
-    if (directHadith) {
-      setActiveItem(directHadith);
-    } else if (hadithData?.hadith) {
-      setActiveItem(hadithData.hadith);
+    if (resolvedItem) {
+      setActiveItem(resolvedItem);
+    } else if (resolvedItemData?.item || resolvedItemData?.hadith) {
+      setActiveItem(resolvedItemData.item || resolvedItemData.hadith);
     } else if (propItemsList) {
       if (propItemsList.length === 0) {
         setActiveItem(null);
@@ -342,32 +364,40 @@ export default function TextView({
         });
       }
     }
-  }, [directHadith, hadithData, propItemsList]);
+  }, [resolvedItem, resolvedItemData, propItemsList]);
 
   // Derived Title, Author, Subtitle, ID
   const displayTitle =
     (activeItem?.title && propTitle ? `${propTitle} • ${activeItem.title}` : null) ||
     activeItem?.title ||
     propTitle ||
-    directBookTitle ||
-    hadithData?.bookTitle ||
-    currentBookData?.metadata?.arabic?.title ||
+    resolvedSourceTitle ||
+    resolvedItemData?.title ||
+    resolvedItemData?.sourceTitle ||
+    resolvedItemData?.bookTitle ||
+    currentCollectionData?.metadata?.arabic?.title ||
     '';
 
   const displayAuthor =
     propAuthor ||
-    directBookAuthor ||
-    hadithData?.bookAuthor ||
-    currentBookData?.metadata?.arabic?.author ||
+    resolvedSourceAuthor ||
+    resolvedItemData?.author ||
+    resolvedItemData?.sourceAuthor ||
+    resolvedItemData?.bookAuthor ||
+    currentCollectionData?.metadata?.arabic?.author ||
     '';
 
-  const chapter = currentBookData?.chapters?.find(
-    (c) => c.id === activeItem?.chapterId
-  );
+  const chapterOrSection =
+    currentCollectionData?.chapters?.find((c) => c.id === activeItem?.chapterId) ||
+    currentCollectionData?.sections?.find((s) => s.id === activeItem?.sectionId);
+
   const displaySubtitle =
     propSubtitle ||
-    directChapterName ||
-    (chapter ? chapter.arabic : null);
+    resolvedSectionName ||
+    resolvedItemData?.sectionName ||
+    resolvedItemData?.chapterName ||
+    resolvedItemData?.subtitle ||
+    (chapterOrSection ? (chapterOrSection.arabic || chapterOrSection.name || chapterOrSection.title) : null);
 
   const displayId =
     propId !== undefined
@@ -382,13 +412,17 @@ export default function TextView({
   }, [propText, activeItem]);
 
   const resolvedBackButtonText =
-    backButtonText || (hadithData ? 'الرجوع إلى الأحاديث' : 'الرجوع');
+    backButtonText ||
+    resolvedItemData?.backButtonText ||
+    (hadithData ? 'الرجوع إلى الأحاديث' : 'الرجوع');
 
   // Navigation List (Previous/Next)
   const navigationList =
     propItemsList ||
-    hadithData?.hadithsList ||
-    currentBookData?.hadiths ||
+    resolvedItemData?.itemsList ||
+    resolvedItemData?.hadithsList ||
+    currentCollectionData?.items ||
+    currentCollectionData?.hadiths ||
     [];
 
   const currentIndex = navigationList.findIndex(
@@ -466,13 +500,19 @@ export default function TextView({
   const resolvedStorageKey = useMemo(() => {
     if (propStorageKey) return propStorageKey;
     if (activeItem) {
-      return `${activeItem.bookFile || hadithData?.selectedBookFile || 'text'}:${activeItem.idInBook || activeItem.id || '1'}`;
+      const resourceFile =
+        activeItem.sourceFile ||
+        activeItem.bookFile ||
+        resolvedItemData?.resourceFile ||
+        resolvedItemData?.selectedBookFile ||
+        'text';
+      return `${resourceFile}:${activeItem.idInBook || activeItem.id || '1'}`;
     }
     if (displayTitle || displayId) {
       return `nisab_text_${displayTitle}_${displayId}`;
     }
     return '';
-  }, [propStorageKey, activeItem, hadithData, displayTitle, displayId]);
+  }, [propStorageKey, activeItem, resolvedItemData, displayTitle, displayId]);
 
   // Load highlights from localStorage and Disk IPC
   useEffect(() => {
@@ -689,11 +729,16 @@ export default function TextView({
           key: resolvedStorageKey,
           id: activeItem?.id || displayId,
           idInBook: activeItem?.idInBook || displayId,
-          bookFile: activeItem?.bookFile || hadithData?.selectedBookFile || 'text',
+          bookFile:
+            activeItem?.sourceFile ||
+            activeItem?.bookFile ||
+            resolvedItemData?.resourceFile ||
+            resolvedItemData?.selectedBookFile ||
+            'text',
           bookTitle: displayTitle,
           bookAuthor: displayAuthor,
           arabic: activeText,
-          chapterId: activeItem?.chapterId
+          chapterId: activeItem?.chapterId || activeItem?.sectionId
         };
         updated = [newFav, ...prev];
       }

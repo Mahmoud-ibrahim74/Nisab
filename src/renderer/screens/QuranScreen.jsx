@@ -20,7 +20,9 @@ import {
   Moon,
   Info,
   Layers,
-  Compass
+  Compass,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import ArabesquePattern from '../components/ArabesquePattern';
 import MiniLoader from '../components/MiniLoader';
@@ -90,11 +92,80 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
   }, [initialTarget, onClearTarget]);
 
   // Container ref & dimensions for real-time dynamic font scaling on screen resize
+  const rootContainerRef = useRef(null);
   const mainContainerRef = useRef(null);
   const [containerSize, setContainerSize] = useState(() => ({
     width: typeof window !== 'undefined' ? window.innerWidth - (window.innerWidth < 1024 ? 80 : 260) : 1000,
     height: typeof window !== 'undefined' ? window.innerHeight - 90 : 700
   }));
+
+  // Fullscreen Mode State & Handler
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (rootContainerRef.current?.requestFullscreen) {
+          await rootContainerRef.current.requestFullscreen();
+        } else if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+        setIsFullscreen(true);
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      // Graceful fallback to CSS full-window mode
+      setIsFullscreen((prev) => !prev);
+    }
+  }, []);
+
+  // Sync fullscreen state with native browser/electron events and Escape / F shortcut keys
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+        setIsFullscreen(false);
+      }
+      // Press F to toggle fullscreen if not typing in an input
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const tag = document.activeElement?.tagName?.toLowerCase();
+        if (tag !== 'input' && tag !== 'textarea') {
+          e.preventDefault();
+          toggleFullscreen();
+        }
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreen, toggleFullscreen]);
+
+  // Recalculate container dimensions when entering/exiting fullscreen
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (mainContainerRef.current) {
+        const rect = mainContainerRef.current.getBoundingClientRect();
+        if (rect.width > 50 && rect.height > 50) {
+          setContainerSize({ width: rect.width, height: rect.height });
+        }
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [isFullscreen]);
 
   // Theme: 'parchment' (classic ivory Mushaf) | 'night' (royal dark emerald)
   const [mushafTheme, setMushafTheme] = useState(() => {
@@ -1003,8 +1074,11 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
 
   return (
     <div
+      ref={rootContainerRef}
       style={{ height: '100%', width: '100%', overflow: 'hidden' }}
-      className="relative h-full w-full bg-slate-950 text-slate-100 flex flex-col font-sans select-none overflow-hidden"
+      className={`relative h-full w-full bg-slate-950 text-slate-100 flex flex-col font-sans select-none overflow-hidden ${
+        isFullscreen ? 'fixed inset-0 z-50 p-0 m-0' : ''
+      }`}
       dir="rtl"
     >
       <ArabesquePattern className="opacity-10 text-emerald-500 pointer-events-none" />
@@ -1213,6 +1287,24 @@ export default function QuranScreen({ initialTarget, onClearTarget }) {
             title={mushafTheme === 'parchment' ? 'تفعيل الوضع الليلي للمصحف' : 'تفعيل لون الورق العاجي للمصحف'}
           >
             {mushafTheme === 'parchment' ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-400" />}
+          </button>
+
+          {/* Fullscreen Mode Button */}
+          <button
+            onClick={toggleFullscreen}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border transition shadow text-xs sm:text-sm ${
+              isFullscreen
+                ? 'bg-amber-500/20 border-amber-400 text-amber-300 hover:bg-amber-500/30 font-semibold'
+                : 'bg-slate-900 border-emerald-900/60 hover:border-amber-400 text-slate-300 hover:text-amber-300'
+            }`}
+            title={isFullscreen ? 'الخروج من ملء الشاشة (Esc)' : 'ملء الشاشة لتلاوة خاشعة (F)'}
+          >
+            {isFullscreen ? (
+              <Minimize2 className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Maximize2 className="w-4 h-4 text-emerald-400" />
+            )}
+            <span className="hidden lg:inline">{isFullscreen ? 'تصغير' : 'ملء الشاشة'}</span>
           </button>
         </div>
       </header>
